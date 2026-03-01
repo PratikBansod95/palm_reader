@@ -63,6 +63,7 @@ app.use(express.json({ limit: '1mb' }));
 
 const defaultRateLimitPerMin = Number(process.env.RATE_LIMIT_PER_MIN || 120);
 const palmRateLimitPerMin = Number(process.env.PALM_RATE_LIMIT_PER_MIN || 20);
+const logPalmRequests = String(process.env.LOG_PALM_REQUESTS || 'true').toLowerCase() !== 'false';
 
 app.use(
   '/api',
@@ -80,8 +81,13 @@ const palmReadingLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   // Keep limits per-device even when many users share one public IP.
-  keyGenerator: (req) => `${req.ip}:${req.get('user-agent') || 'unknown'}`,
-  handler: (_req, res) => {
+  keyGenerator: (req) => getPalmClientKey(req),
+  handler: (req, res) => {
+    if (logPalmRequests) {
+      console.warn(
+        `[PalmRateLimit] local_rate_limit key="${getPalmClientKey(req)}" ip="${req.ip}" ua="${req.get('user-agent') || 'unknown'}"`,
+      );
+    }
     return res.status(429).json({ error: 'local_rate_limit' });
   },
 });
@@ -92,6 +98,12 @@ app.get('/api/health', (_req, res) => {
 
 app.post('/api/palm-reading', palmReadingLimiter, upload.single('image'), async (req, res) => {
   try {
+    if (logPalmRequests) {
+      console.info(
+        `[PalmRequest] start ip="${req.ip}" ua="${req.get('user-agent') || 'unknown'}" lang="${req.body?.language || 'English'}" hand="${req.body?.dominantHand || 'Right'}"`,
+      );
+    }
+
     if (appApiKey) {
       const incoming = String(req.headers['x-app-key'] || '');
       if (incoming !== appApiKey) {
@@ -150,10 +162,14 @@ app.post('/api/palm-reading', palmReadingLimiter, upload.single('image'), async 
       return res.status(502).json({ error: 'empty model output' });
     }
 
+    if (logPalmRequests) {
+      console.info('[PalmRequest] success');
+    }
+
     return res.json({ reading });
   } catch (error) {
     if (error?.status === 429) {
-      console.error('OpenAI upstream rate limited or quota exceeded');
+      console.error('[PalmRequest] OpenAI upstream rate limited or quota exceeded');
       return res.status(503).json({ error: 'upstream_rate_limit' });
     }
 
@@ -177,6 +193,10 @@ function withTimeout(promise, timeoutMs, message) {
       setTimeout(() => reject(new Error(message)), timeoutMs);
     }),
   ]);
+}
+
+function getPalmClientKey(req) {
+  return `${req.ip}:${req.get('user-agent') || 'unknown'}`;
 }
 
 function extractOutputText(response) {
