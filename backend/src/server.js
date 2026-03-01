@@ -61,20 +61,33 @@ app.use(
 );
 app.use(express.json({ limit: '1mb' }));
 
+const defaultRateLimitPerMin = Number(process.env.RATE_LIMIT_PER_MIN || 120);
+const palmRateLimitPerMin = Number(process.env.PALM_RATE_LIMIT_PER_MIN || 20);
+
 app.use(
+  '/api',
   rateLimit({
     windowMs: 60 * 1000,
-    max: 30,
+    max: defaultRateLimitPerMin,
     standardHeaders: true,
     legacyHeaders: false,
   }),
 );
 
+const palmReadingLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: palmRateLimitPerMin,
+  standardHeaders: true,
+  legacyHeaders: false,
+  // Keep limits per-device even when many users share one public IP.
+  keyGenerator: (req) => `${req.ip}:${req.get('user-agent') || 'unknown'}`,
+});
+
 app.get('/api/health', (_req, res) => {
   res.json({ ok: true });
 });
 
-app.post('/api/palm-reading', upload.single('image'), async (req, res) => {
+app.post('/api/palm-reading', palmReadingLimiter, upload.single('image'), async (req, res) => {
   try {
     if (appApiKey) {
       const incoming = String(req.headers['x-app-key'] || '');
