@@ -1,10 +1,11 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:palm_reader/core/theme/app_theme.dart';
 import 'package:palm_reader/features/onboarding/language_hand_screen.dart';
 import 'package:palm_reader/features/palm_analysis/result_screen.dart';
 import 'package:palm_reader/features/palm_capture/palm_capture_screen.dart';
 import 'package:palm_reader/features/palm_capture/scanning_screen.dart';
+import 'package:palm_reader/models/reading_context_model.dart';
 import 'package:palm_reader/features/subscription/subscription_screen.dart';
 import 'package:palm_reader/models/palm_result_model.dart';
 
@@ -21,11 +22,25 @@ class PalmDestinyApp extends StatelessWidget {
         ),
         GoRoute(
           path: '/capture',
-          builder: (context, state) => const PalmCaptureScreen(),
+          builder: (context, state) {
+            final extra = state.extra;
+            final selection = extra is OnboardingSelection
+                ? extra
+                : const OnboardingSelection(language: 'English', dominantHand: 'Right');
+            return PalmCaptureScreen(selection: selection);
+          },
         ),
         GoRoute(
           path: '/scanning',
-          builder: (context, state) => const ScanningScreen(),
+          builder: (context, state) {
+            final extra = state.extra;
+            if (extra is! ScanRequest) {
+              return const LanguageHandScreen();
+            }
+            return ScanningScreen(
+              request: extra,
+            );
+          },
         ),
         GoRoute(
           path: '/results',
@@ -68,4 +83,9 @@ class PalmDestinyApp extends StatelessWidget {
     );
   }
 }
+
+
+
+
+
 

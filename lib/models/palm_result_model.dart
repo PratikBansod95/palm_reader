@@ -1,5 +1,6 @@
-﻿class PalmResultModel {
+class PalmResultModel {
   const PalmResultModel({
+    required this.fullReading,
     required this.personality,
     required this.lifePath,
     required this.love,
@@ -9,6 +10,7 @@
     required this.followUps,
   });
 
+  final String fullReading;
   final String personality;
   final String lifePath;
   final String love;
@@ -19,6 +21,7 @@
 
   factory PalmResultModel.fromMap(Map<String, dynamic> map) {
     return PalmResultModel(
+      fullReading: map['fullReading'] as String? ?? map['reading'] as String? ?? '',
       personality: map['personality'] as String? ?? '',
       lifePath: map['lifePath'] as String? ?? '',
       love: map['love'] as String? ?? '',
@@ -31,4 +34,3 @@
     );
   }
 }
-

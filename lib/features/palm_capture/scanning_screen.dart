@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -7,11 +7,17 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/constants/animation_timings.dart';
 import '../../core/theme/colors.dart';
-import '../../services/mock_api_service.dart';
+import '../../models/reading_context_model.dart';
+import '../../services/openai_palm_service.dart';
 import '../../widgets/animated_background.dart';
 
 class ScanningScreen extends ConsumerStatefulWidget {
-  const ScanningScreen({super.key});
+  const ScanningScreen({
+    required this.request,
+    super.key,
+  });
+
+  final ScanRequest request;
 
   @override
   ConsumerState<ScanningScreen> createState() => _ScanningScreenState();
@@ -20,11 +26,11 @@ class ScanningScreen extends ConsumerStatefulWidget {
 class _ScanningScreenState extends ConsumerState<ScanningScreen>
     with SingleTickerProviderStateMixin {
   final List<String> _steps = const [
-    'Scanning surface patterns…',
-    'Mapping emotional currents…',
-    'Interpreting karmic imprints…',
-    'Analyzing life path indicators…',
-    'Finalizing destiny blueprint…',
+    'Scanning surface patterns...',
+    'Mapping emotional currents...',
+    'Interpreting karmic imprints...',
+    'Analyzing life path indicators...',
+    'Finalizing destiny blueprint...',
   ];
 
   late final AnimationController _beamController = AnimationController(
@@ -51,14 +57,56 @@ class _ScanningScreenState extends ConsumerState<ScanningScreen>
       if (timer.tick >= AnimationTimings.scanTotal.inSeconds && !_navigating) {
         _navigating = true;
         timer.cancel();
-        HapticFeedback.heavyImpact();
-        final result = await ref.read(mockApiServiceProvider).fetchPalmReading();
-        if (!mounted) {
-          return;
-        }
-        context.go('/results', extra: result);
+        await _runAnalysis();
       }
     });
+  }
+
+  Future<void> _runAnalysis() async {
+    try {
+      HapticFeedback.heavyImpact();
+      final result = await ref.read(openAiPalmServiceProvider).fetchPalmReading(
+            imageBytes: widget.request.imageBytes,
+            language: widget.request.language,
+            dominantHand: widget.request.dominantHand,
+          );
+      if (!mounted) {
+        return;
+      }
+      context.go('/results', extra: result);
+    } catch (error) {
+      _navigating = false;
+      if (!mounted) {
+        return;
+      }
+
+      await showDialog<void>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Analysis Failed'),
+          content: Text('Could not analyze your palm right now.\n$error'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Retry'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                context.go(
+                  '/capture',
+                  extra: OnboardingSelection(
+                    language: widget.request.language,
+                    dominantHand: widget.request.dominantHand,
+                  ),
+                );
+              },
+              child: const Text('Recapture'),
+            ),
+          ],
+        ),
+      );
+    }
   }
 
   @override
@@ -93,10 +141,36 @@ class _ScanningScreenState extends ConsumerState<ScanningScreen>
                       borderRadius: BorderRadius.circular(26),
                       child: Stack(
                         children: [
+                          Positioned.fill(
+                            child: Opacity(
+                              opacity: 0.28,
+                              child: Image.memory(
+                                widget.request.imageBytes,
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) =>
+                                    const SizedBox.shrink(),
+                              ),
+                            ),
+                          ),
+                          Positioned.fill(
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.bottomCenter,
+                                  colors: [
+                                    AppColors.midnight.withValues(alpha: 0.26),
+                                    AppColors.deepIndigo.withValues(alpha: 0.20),
+                                    AppColors.midnight.withValues(alpha: 0.32),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
                           Center(
                             child: Icon(
                               Icons.pan_tool_alt_rounded,
-                              color: AppColors.softGold.withOpacity(0.45),
+                              color: AppColors.softGold.withValues(alpha: 0.35),
                               size: 170,
                             ),
                           ),
@@ -114,13 +188,13 @@ class _ScanningScreenState extends ConsumerState<ScanningScreen>
                                     gradient: LinearGradient(
                                       colors: [
                                         Colors.transparent,
-                                        AppColors.softGold.withOpacity(0.95),
+                                        AppColors.softGold.withValues(alpha: 0.95),
                                         Colors.transparent,
                                       ],
                                     ),
                                     boxShadow: [
                                       BoxShadow(
-                                        color: AppColors.gold.withOpacity(0.45),
+                                        color: AppColors.gold.withValues(alpha: 0.45),
                                         blurRadius: 16,
                                       ),
                                     ],
@@ -168,4 +242,3 @@ class _ScanningScreenState extends ConsumerState<ScanningScreen>
     );
   }
 }
-

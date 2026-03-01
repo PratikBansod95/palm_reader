@@ -26,6 +26,7 @@ class ResultScreen extends StatefulWidget {
 class _ResultScreenState extends State<ResultScreen> {
   int _visibleSections = 0;
   Timer? _timer;
+  bool get _hasNarrative => widget.result.fullReading.trim().isNotEmpty;
 
   List<MapEntry<String, String>> get _sections => [
         MapEntry('Personality', widget.result.personality),
@@ -40,6 +41,10 @@ class _ResultScreenState extends State<ResultScreen> {
   void initState() {
     super.initState();
     HapticFeedback.selectionClick();
+    if (_hasNarrative) {
+      _visibleSections = _sections.length;
+      return;
+    }
     _timer = Timer.periodic(AnimationTimings.sectionStagger, (timer) {
       if (!mounted) {
         return;
@@ -68,27 +73,49 @@ class _ResultScreenState extends State<ResultScreen> {
             children: [
               const GlowingHeader(title: 'Your Destiny Reading'),
               const SizedBox(height: 12),
-              ...List.generate(_sections.length, (i) {
-                final visible = i < _visibleSections;
-                final section = _sections[i];
-                return AnimatedOpacity(
-                  opacity: visible ? 1 : 0,
-                  duration: const Duration(milliseconds: 500),
-                  curve: Curves.easeOutCubic,
-                  child: AnimatedSlide(
-                    offset: visible ? Offset.zero : const Offset(0, 0.06),
+              if (_hasNarrative)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(18),
+                  decoration: BoxDecoration(
+                    color: AppColors.cardBase,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: AppColors.cardStroke),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.gold.withOpacity(0.08),
+                        blurRadius: 18,
+                        spreadRadius: 1,
+                      ),
+                    ],
+                  ),
+                  child: Text(
+                    widget.result.fullReading,
+                    style: Theme.of(context).textTheme.bodyLarge,
+                  ),
+                )
+              else
+                ...List.generate(_sections.length, (i) {
+                  final visible = i < _visibleSections;
+                  final section = _sections[i];
+                  return AnimatedOpacity(
+                    opacity: visible ? 1 : 0,
                     duration: const Duration(milliseconds: 500),
                     curve: Curves.easeOutCubic,
-                    child: Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: SectionCard(
-                        title: section.key,
-                        body: section.value,
+                    child: AnimatedSlide(
+                      offset: visible ? Offset.zero : const Offset(0, 0.06),
+                      duration: const Duration(milliseconds: 500),
+                      curve: Curves.easeOutCubic,
+                      child: Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: SectionCard(
+                          title: section.key,
+                          body: section.value,
+                        ),
                       ),
                     ),
-                  ),
-                );
-              }),
+                  );
+                }),
               AnimatedOpacity(
                 opacity: _visibleSections >= _sections.length ? 1 : 0,
                 duration: const Duration(milliseconds: 550),

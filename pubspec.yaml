@@ -17,6 +17,10 @@ dependencies:
   google_fonts: ^6.3.0
   animations: ^2.0.11
   flutter_hooks: ^0.21.3+1
+  http: ^1.2.2
+  image: ^4.3.0
+  image_picker: ^1.1.2
+  permission_handler: ^11.4.0
 
 dev_dependencies:
   flutter_test:
@@ -25,3 +29,5 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/images/
