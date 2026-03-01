@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 
 import '../models/palm_result_model.dart';
 
@@ -35,6 +36,7 @@ class OpenAiPalmService {
           'image',
           imageBytes,
           filename: 'palm.jpg',
+          contentType: MediaType('image', 'jpeg'),
         ),
       );
 
