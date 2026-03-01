@@ -17,12 +17,22 @@ const allowedOrigins = String(process.env.CORS_ORIGIN || '')
   .split(',')
   .map((v) => v.trim())
   .filter(Boolean);
+const trustProxy = process.env.TRUST_PROXY ?? (process.env.RENDER ? '1' : 'false');
 
 if (!apiKey) {
   throw new Error('OPENAI_API_KEY is required');
 }
 
 const openai = new OpenAI({ apiKey });
+
+if (trustProxy === 'true') {
+  app.set('trust proxy', true);
+} else if (trustProxy === 'false') {
+  app.set('trust proxy', false);
+} else {
+  const proxyHops = Number.parseInt(trustProxy, 10);
+  app.set('trust proxy', Number.isNaN(proxyHops) ? 1 : proxyHops);
+}
 
 const upload = multer({
   storage: multer.memoryStorage(),
