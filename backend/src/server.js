@@ -81,6 +81,9 @@ const palmReadingLimiter = rateLimit({
   legacyHeaders: false,
   // Keep limits per-device even when many users share one public IP.
   keyGenerator: (req) => `${req.ip}:${req.get('user-agent') || 'unknown'}`,
+  handler: (_req, res) => {
+    return res.status(429).json({ error: 'local_rate_limit' });
+  },
 });
 
 app.get('/api/health', (_req, res) => {
@@ -149,6 +152,11 @@ app.post('/api/palm-reading', palmReadingLimiter, upload.single('image'), async 
 
     return res.json({ reading });
   } catch (error) {
+    if (error?.status === 429) {
+      console.error('OpenAI upstream rate limited or quota exceeded');
+      return res.status(503).json({ error: 'upstream_rate_limit' });
+    }
+
     if (error?.message === 'OpenAI request timed out') {
       return res.status(504).json({ error: 'analysis timeout' });
     }

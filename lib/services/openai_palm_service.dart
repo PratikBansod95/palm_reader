@@ -77,6 +77,12 @@ class OpenAiPalmService {
   }
 
   String _friendlyErrorForStatus(int statusCode, String rawError) {
+    if (rawError == 'local_rate_limit') {
+      return 'Too many requests. Please wait a minute and try again.';
+    }
+    if (rawError == 'upstream_rate_limit') {
+      return 'Analysis provider is currently rate-limited or quota-limited. Please try again in a few minutes.';
+    }
     if (statusCode == 401 || statusCode == 403) {
       return 'App authorization failed. Please contact support.';
     }
