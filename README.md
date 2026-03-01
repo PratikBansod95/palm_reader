@@ -18,9 +18,11 @@ The mobile app **does not call OpenAI directly** anymore.
    - copy `.env.example` to `.env`
 4. Set values in `.env`:
    - `OPENAI_API_KEY=...`
-   - `OPENAI_MODEL=gpt-4.1-mini` (optional)
+   - `OPENAI_MODEL=gpt-4.1-nano` (optional)
    - `PORT=8080` (optional)
-   - `CORS_ORIGIN=*` (tighten in production)
+   - `CORS_ORIGIN=https://your-frontend.example.com` (comma-separated allowed origins)
+   - `OPENAI_TIMEOUT_MS=45000` (optional)
+   - `APP_API_KEY=replace-with-strong-random-token` (recommended)
 5. Run backend:
    - `npm run dev`
 
@@ -32,8 +34,9 @@ Health check:
 1. In project root:
    - `flutter pub get`
 2. Run app with backend URL:
-   - Android emulator: `flutter run --dart-define=BACKEND_URL=http://10.0.2.2:8080`
-   - Physical device: `flutter run --dart-define=BACKEND_URL=http://<YOUR_PC_LAN_IP>:8080`
+   - Hosted backend: `flutter run --dart-define=BACKEND_URL=https://your-backend.onrender.com --dart-define=BACKEND_APP_KEY=replace-with-strong-random-token`
+   - Android emulator local: `flutter run --dart-define=BACKEND_URL=http://10.0.2.2:8080 --dart-define=BACKEND_APP_KEY=replace-with-strong-random-token`
+   - Physical device local: `flutter run --dart-define=BACKEND_URL=http://<YOUR_PC_LAN_IP>:8080 --dart-define=BACKEND_APP_KEY=replace-with-strong-random-token`
 
 ## API Contract
 
@@ -52,5 +55,5 @@ Response:
 ## Security Notes
 
 - Keep OpenAI API key only on backend (`backend/.env`)
-- Add authentication + stronger per-user limits before production use
+- Use `APP_API_KEY` + rate limiting as baseline access control
 - Restrict `CORS_ORIGIN` and deploy over HTTPS

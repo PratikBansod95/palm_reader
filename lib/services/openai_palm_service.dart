@@ -15,8 +15,9 @@ class OpenAiPalmService {
 
   static const _backendBaseUrl = String.fromEnvironment(
     'BACKEND_URL',
-    defaultValue: 'http://10.0.2.2:8080',
+    defaultValue: 'https://palm-reader-w4yy.onrender.com',
   );
+  static const _appApiKey = String.fromEnvironment('BACKEND_APP_KEY');
 
   final http.Client httpClient;
 
@@ -37,33 +38,70 @@ class OpenAiPalmService {
         ),
       );
 
-    final streamedResponse =
-        await httpClient.send(request).timeout(const Duration(seconds: 50));
-
-    final response = await http.Response.fromStream(streamedResponse);
-
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      final error = _extractError(response.body);
-      throw Exception('Backend error ${response.statusCode}: $error');
+    if (_appApiKey.isNotEmpty) {
+      request.headers['x-app-key'] = _appApiKey;
     }
 
-    final decoded = jsonDecode(response.body) as Map<String, dynamic>;
-    final reading = (decoded['reading'] as String? ?? '').trim();
+    try {
+      final streamedResponse =
+          await httpClient.send(request).timeout(const Duration(seconds: 55));
+      final response = await http.Response.fromStream(streamedResponse);
 
-    if (reading.isEmpty) {
-      throw Exception('Backend returned empty reading');
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        final error = _extractError(response.body);
+        throw Exception(_friendlyErrorForStatus(response.statusCode, error));
+      }
+
+      final decoded = jsonDecode(response.body) as Map<String, dynamic>;
+      final reading = (decoded['reading'] as String? ?? '').trim();
+
+      if (reading.isEmpty) {
+        throw Exception('Palm analysis is unavailable right now. Please try again.');
+      }
+
+      return PalmResultModel(
+        fullReading: reading,
+        personality: '',
+        lifePath: '',
+        love: '',
+        wealth: '',
+        challenges: '',
+        guidance: '',
+        followUps: const [],
+      );
+    } catch (error) {
+      throw Exception(_friendlyNetworkError(error.toString()));
     }
+  }
 
-    return PalmResultModel(
-      fullReading: reading,
-      personality: '',
-      lifePath: '',
-      love: '',
-      wealth: '',
-      challenges: '',
-      guidance: '',
-      followUps: const [],
-    );
+  String _friendlyErrorForStatus(int statusCode, String rawError) {
+    if (statusCode == 401 || statusCode == 403) {
+      return 'App authorization failed. Please contact support.';
+    }
+    if (statusCode == 429) {
+      return 'Too many requests. Please wait a minute and try again.';
+    }
+    if (statusCode == 504) {
+      return 'Analysis took too long. Please retry.';
+    }
+    if (statusCode >= 500) {
+      return 'Server is temporarily unavailable. Please try again.';
+    }
+    return rawError.isEmpty ? 'Request failed. Please try again.' : rawError;
+  }
+
+  String _friendlyNetworkError(String raw) {
+    final text = raw.toLowerCase();
+    if (text.contains('10.0.2.2')) {
+      return 'Backend URL is using emulator host (10.0.2.2). On a physical device, use your deployed HTTPS backend URL.';
+    }
+    if (text.contains('timed out') || text.contains('socketexception')) {
+      return 'Network timeout while contacting analysis server. Please check internet and retry.';
+    }
+    if (text.startsWith('exception: ')) {
+      return raw.substring(11);
+    }
+    return raw;
   }
 
   String _extractError(String body) {
@@ -76,8 +114,8 @@ class OpenAiPalmService {
         }
       }
     } catch (_) {
-      // ignore parsing errors and fallback to raw body
+      // Ignore parse errors and fallback below.
     }
-    return body.isEmpty ? 'unknown error' : body;
+    return body.isEmpty ? '' : body;
   }
 }

@@ -9,9 +9,14 @@ import OpenAI from 'openai';
 const app = express();
 
 const port = Number(process.env.PORT || 8080);
-const corsOrigin = process.env.CORS_ORIGIN || '*';
-const model = process.env.OPENAI_MODEL || 'gpt-4.1-mini';
+const model = process.env.OPENAI_MODEL || 'gpt-4.1-nano';
 const apiKey = process.env.OPENAI_API_KEY;
+const appApiKey = (process.env.APP_API_KEY || '').trim();
+const openAiTimeoutMs = Number(process.env.OPENAI_TIMEOUT_MS || 45000);
+const allowedOrigins = String(process.env.CORS_ORIGIN || '')
+  .split(',')
+  .map((v) => v.trim())
+  .filter(Boolean);
 
 if (!apiKey) {
   throw new Error('OPENAI_API_KEY is required');
@@ -28,7 +33,22 @@ const upload = multer({
 });
 
 app.use(helmet());
-app.use(cors({ origin: corsOrigin }));
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      if (!origin) {
+        return callback(null, true);
+      }
+      if (allowedOrigins.length === 0) {
+        return callback(new Error('CORS blocked: CORS_ORIGIN is not configured'));
+      }
+      if (allowedOrigins.includes('*') || allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      return callback(new Error('CORS blocked: origin not allowed'));
+    },
+  }),
+);
 app.use(express.json({ limit: '1mb' }));
 
 app.use(
@@ -46,6 +66,13 @@ app.get('/api/health', (_req, res) => {
 
 app.post('/api/palm-reading', upload.single('image'), async (req, res) => {
   try {
+    if (appApiKey) {
+      const incoming = String(req.headers['x-app-key'] || '');
+      if (incoming !== appApiKey) {
+        return res.status(401).json({ error: 'unauthorized' });
+      }
+    }
+
     const image = req.file;
     const language = (req.body.language || 'English').toString();
     const dominantHand = (req.body.dominantHand || 'Right').toString();
@@ -62,29 +89,33 @@ app.post('/api/palm-reading', upload.single('image'), async (req, res) => {
     const base64Image = image.buffer.toString('base64');
     const dataUrl = `data:${image.mimetype};base64,${base64Image}`;
 
-    const response = await openai.responses.create({
-      model,
-      max_output_tokens: 900,
-      input: [
-        {
-          role: 'system',
-          content: [
-            {
-              type: 'input_text',
-              text:
-                'You are an expert palmist and spiritual guide. Keep output warm, practical, and emotionally intelligent.',
-            },
-          ],
-        },
-        {
-          role: 'user',
-          content: [
-            { type: 'input_text', text: prompt },
-            { type: 'input_image', image_url: dataUrl },
-          ],
-        },
-      ],
-    });
+    const response = await withTimeout(
+      openai.responses.create({
+        model,
+        max_output_tokens: 900,
+        input: [
+          {
+            role: 'system',
+            content: [
+              {
+                type: 'input_text',
+                text:
+                  'You are an expert palmist and spiritual guide. Keep output warm, practical, and emotionally intelligent.',
+              },
+            ],
+          },
+          {
+            role: 'user',
+            content: [
+              { type: 'input_text', text: prompt },
+              { type: 'input_image', image_url: dataUrl },
+            ],
+          },
+        ],
+      }),
+      openAiTimeoutMs,
+      'OpenAI request timed out',
+    );
 
     const reading = extractOutputText(response).trim();
 
@@ -94,11 +125,27 @@ app.post('/api/palm-reading', upload.single('image'), async (req, res) => {
 
     return res.json({ reading });
   } catch (error) {
+    if (error?.message === 'OpenAI request timed out') {
+      return res.status(504).json({ error: 'analysis timeout' });
+    }
+
     const statusCode = error?.status || 500;
-    const message = statusCode >= 500 ? 'analysis failed' : String(error?.message || 'request failed');
-    return res.status(statusCode).json({ error: message });
+    if (statusCode >= 500) {
+      return res.status(statusCode).json({ error: 'analysis failed' });
+    }
+
+    return res.status(statusCode).json({ error: 'request failed' });
   }
 });
+
+function withTimeout(promise, timeoutMs, message) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      setTimeout(() => reject(new Error(message)), timeoutMs);
+    }),
+  ]);
+}
 
 function extractOutputText(response) {
   if (typeof response?.output_text === 'string' && response.output_text.trim()) {

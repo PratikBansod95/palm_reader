@@ -84,7 +84,9 @@ class _ScanningScreenState extends ConsumerState<ScanningScreen>
         context: context,
         builder: (context) => AlertDialog(
           title: const Text('Analysis Failed'),
-          content: Text('Could not analyze your palm right now.\n$error'),
+          content: Text(
+            'Could not analyze your palm right now.\n${_toUiError(error)}',
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
@@ -107,6 +109,15 @@ class _ScanningScreenState extends ConsumerState<ScanningScreen>
         ),
       );
     }
+  }
+
+  String _toUiError(Object error) {
+    final text = error.toString();
+    const prefix = 'Exception: ';
+    if (text.startsWith(prefix)) {
+      return text.substring(prefix.length);
+    }
+    return text;
   }
 
   @override
