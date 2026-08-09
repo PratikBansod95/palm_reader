@@ -22,10 +22,10 @@ enum AnalysisProvider { demo, openrouter, backend }
 class PalmAnalysisService {
   PalmAnalysisService({required this.httpClient});
 
-  /// `auto` (default) | `demo` | `openrouter` | `backend`
+  /// `openrouter` (default) | `auto` | `demo` | `backend`
   static const analysisMode = String.fromEnvironment(
     'ANALYSIS_MODE',
-    defaultValue: 'auto',
+    defaultValue: 'openrouter',
   );
   static const _backendBaseUrl = String.fromEnvironment(
     'BACKEND_URL',
@@ -43,14 +43,14 @@ class PalmAnalysisService {
     final mode = analysisMode.toLowerCase().trim();
     if (mode == 'demo') return AnalysisProvider.demo;
     if (mode == 'backend') return AnalysisProvider.backend;
-    if (mode == 'openrouter') {
+    if (mode == 'openrouter' || mode == 'auto' || mode.isEmpty) {
       return openRouterApiKey.isEmpty
           ? AnalysisProvider.demo
           : AnalysisProvider.openrouter;
     }
-    // auto: prefer frontend OpenRouter when a key is present.
-    if (openRouterApiKey.isNotEmpty) return AnalysisProvider.openrouter;
-    return AnalysisProvider.demo;
+    return openRouterApiKey.isEmpty
+        ? AnalysisProvider.demo
+        : AnalysisProvider.openrouter;
   }
 
   bool get isDemoMode => provider == AnalysisProvider.demo;

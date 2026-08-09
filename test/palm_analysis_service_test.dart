@@ -7,6 +7,7 @@ import 'package:palm_reader/services/palm_analysis_service.dart';
 
 void main() {
   test('demo mode returns narrative reading', () async {
+    // Tests run without .secrets key / dart-defines, so provider falls back to demo.
     final service = PalmAnalysisService(httpClient: http.Client());
     expect(service.isDemoMode, isTrue);
 

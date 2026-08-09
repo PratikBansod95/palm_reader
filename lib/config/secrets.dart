@@ -1,6 +1,35 @@
-/// OpenRouter key for frontend-only mode.
+import 'package:flutter/foundation.dart';
+
+import 'secrets_loader_stub.dart'
+    if (dart.library.io) 'secrets_loader_io.dart' as loader;
+
+/// Personal OpenRouter credentials for frontend-only demos.
 ///
-/// Provide via:
-/// - `.\run_app.ps1` (reads `.secrets/openrouter.key`), or
-/// - `--dart-define=OPENROUTER_API_KEY=...`
-const String openRouterApiKey = String.fromEnvironment('OPENROUTER_API_KEY');
+/// Load order:
+/// 1) `--dart-define=OPENROUTER_API_KEY=...`
+/// 2) `.secrets/openrouter.key` (gitignored, for normal `flutter run`)
+class AppSecrets {
+  AppSecrets._();
+
+  static String openRouterApiKey = '';
+
+  static const _fromDefine = String.fromEnvironment('OPENROUTER_API_KEY');
+
+  static Future<void> load() async {
+    if (_fromDefine.trim().isNotEmpty) {
+      openRouterApiKey = _fromDefine.trim();
+      return;
+    }
+
+    if (kIsWeb) {
+      return;
+    }
+
+    openRouterApiKey = await loader.loadOpenRouterKeyFromDisk();
+  }
+
+  static bool get hasOpenRouterKey => openRouterApiKey.trim().isNotEmpty;
+}
+
+/// Backwards-compatible getter used by analysis service.
+String get openRouterApiKey => AppSecrets.openRouterApiKey;

@@ -1,42 +1,47 @@
 # Palm Destiny
 
-Frontend-first Flutter palm reading app. **No backend required** for normal use.
+Personal Flutter palm-reading app. **No backend required.**
 
-## How analysis works
+For demos/presentations, the app calls OpenRouter (`google/gemma-4-26b-a4b-it:free`) directly and returns a **real AI palm reading**.
 
-1. **OpenRouter (recommended for you)** — app calls `google/gemma-4-26b-a4b-it:free` directly
-2. **Demo fallback** — offline narrative if no OpenRouter key is configured
-3. **Backend (optional later)** — `backend/` remains in the repo when you want a secure proxy
+## Setup (once)
 
-## Quick start (live AI, frontend only)
+1. Put your OpenRouter key in:
 
-1. Put your OpenRouter key in `.secrets/openrouter.key` (one line, already gitignored)
-2. Run:
-
-```powershell
-.\run_app.ps1
-# or another device:
-.\run_app.ps1 -d chrome
+```text
+.secrets/openrouter.key
 ```
 
-## Offline demo only
+(one line, already gitignored)
+
+2. Install deps:
 
 ```bash
 flutter pub get
-flutter run -d windows
 ```
 
-## Optional backend later
-
-When you want keys off-device:
+## Run (real AI results)
 
 ```bash
-cd backend
-# configure .env
-npm run dev
-flutter run --dart-define=ANALYSIS_MODE=backend --dart-define=BACKEND_URL=http://127.0.0.1:8080 --dart-define=BACKEND_APP_KEY=...
+flutter run -d windows
+# or
+flutter run -d chrome
+# or
+.\run_app.ps1
 ```
 
-## Security note
+On launch the app loads `.secrets/openrouter.key` automatically, then:
 
-Frontend OpenRouter keys can be extracted from a distributed app binary. Fine for a personal build that stays with you. Use the backend before any public/store release.
+**language/hand → camera/gallery → scan → live OpenRouter reading**
+
+## Offline placeholder only
+
+If you intentionally want fake offline text:
+
+```bash
+flutter run -d windows --dart-define=ANALYSIS_MODE=demo
+```
+
+## Backend later (optional)
+
+`backend/` remains in the repo for a future secure proxy. Not needed while the app stays private with you.
