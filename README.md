@@ -2,46 +2,39 @@
 
 Personal Flutter palm-reading app. **No backend required.**
 
-For demos/presentations, the app calls OpenRouter (`google/gemma-4-26b-a4b-it:free`) directly and returns a **real AI palm reading**.
+Live AI uses OpenRouter (`google/gemma-4-26b-a4b-it:free`) from the app.
 
-## Setup (once)
+## One-time key setup (required for phone installs)
 
-1. Put your OpenRouter key in:
+1. Copy the example key file:
 
-```text
-.secrets/openrouter.key
+```powershell
+Copy-Item lib\config\openrouter_embedded.example.dart lib\config\openrouter_embedded.dart
 ```
 
-(one line, already gitignored)
+2. Paste your OpenRouter key into `lib/config/openrouter_embedded.dart`:
 
-2. Install deps:
+```dart
+const String kEmbeddedOpenRouterApiKey = 'sk-or-v1-...';
+```
 
-```bash
+That key is **compiled into the APK**, so Android Studio Run / phone installs get Live AI without extra dart-defines.
+
+`openrouter_embedded.dart` is gitignored (not pushed to GitHub).
+
+## Run
+
+```powershell
 flutter pub get
-```
-
-## Run (real AI results)
-
-```bash
 flutter run -d windows
-# or
-flutter run -d chrome
-# or
-.\run_app.ps1
+# phone:
+flutter run -d <device_id>
 ```
 
-On launch the app loads `.secrets/openrouter.key` automatically, then:
+On the home screen, tap **Check** — you should see **AI is working**.
 
-**language/hand → camera/gallery → scan → live OpenRouter reading**
+## Offline demo only
 
-## Offline placeholder only
-
-If you intentionally want fake offline text:
-
-```bash
-flutter run -d windows --dart-define=ANALYSIS_MODE=demo
+```powershell
+flutter run --dart-define=ANALYSIS_MODE=demo
 ```
-
-## Backend later (optional)
-
-`backend/` remains in the repo for a future secure proxy. Not needed while the app stays private with you.

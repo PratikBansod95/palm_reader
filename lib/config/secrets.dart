@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import 'openrouter_embedded.dart';
 import 'secrets_loader_stub.dart'
     if (dart.library.io) 'secrets_loader_io.dart' as loader;
 
@@ -7,7 +8,8 @@ import 'secrets_loader_stub.dart'
 ///
 /// Load order:
 /// 1) `--dart-define=OPENROUTER_API_KEY=...`
-/// 2) `.secrets/openrouter.key` (gitignored, for normal `flutter run`)
+/// 2) baked-in key from `openrouter_embedded.dart`
+/// 3) `.secrets/openrouter.key` (desktop/dev only)
 class AppSecrets {
   AppSecrets._();
 
@@ -18,6 +20,11 @@ class AppSecrets {
   static Future<void> load() async {
     if (_fromDefine.trim().isNotEmpty) {
       openRouterApiKey = _fromDefine.trim();
+      return;
+    }
+
+    if (kEmbeddedOpenRouterApiKey.trim().isNotEmpty) {
+      openRouterApiKey = kEmbeddedOpenRouterApiKey.trim();
       return;
     }
 
@@ -32,4 +39,12 @@ class AppSecrets {
 }
 
 /// Backwards-compatible getter used by analysis service.
-String get openRouterApiKey => AppSecrets.openRouterApiKey;
+String get openRouterApiKey {
+  if (AppSecrets.openRouterApiKey.trim().isNotEmpty) {
+    return AppSecrets.openRouterApiKey.trim();
+  }
+  if (AppSecrets._fromDefine.trim().isNotEmpty) {
+    return AppSecrets._fromDefine.trim();
+  }
+  return kEmbeddedOpenRouterApiKey.trim();
+}

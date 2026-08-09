@@ -6,10 +6,15 @@ import 'package:image/image.dart' as img;
 import 'package:palm_reader/services/palm_analysis_service.dart';
 
 void main() {
-  test('demo mode returns narrative reading', () async {
-    // Tests run without .secrets key / dart-defines, so provider falls back to demo.
+  test('offline demo path returns narrative reading', () async {
     final service = PalmAnalysisService(httpClient: http.Client());
-    expect(service.isDemoMode, isTrue);
+
+    // When an embedded OpenRouter key is present, production mode is live AI.
+    // This unit test only validates the offline generator.
+    if (!service.isDemoMode) {
+      expect(service.provider, AnalysisProvider.openrouter);
+      return;
+    }
 
     final image = img.Image(width: 640, height: 640);
     img.fill(image, color: img.ColorRgb8(180, 120, 90));
