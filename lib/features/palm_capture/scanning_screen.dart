@@ -164,9 +164,14 @@ class _ScanningScreenState extends ConsumerState<ScanningScreen>
                 Text('Destiny Scan', style: textTheme.headlineMedium),
                 const SizedBox(height: 8),
                 Text(
-                  ref.read(palmAnalysisServiceProvider).isDemoMode
-                      ? 'Preparing your personalized reading'
-                      : 'Connecting to the analysis guide',
+                  switch (ref.read(palmAnalysisServiceProvider).provider) {
+                    AnalysisProvider.demo =>
+                      'Preparing your personalized reading',
+                    AnalysisProvider.openrouter =>
+                      'Reading your palm with AI guide',
+                    AnalysisProvider.backend =>
+                      'Connecting to the analysis guide',
+                  },
                   style: textTheme.bodyMedium,
                 ),
                 const SizedBox(height: 24),

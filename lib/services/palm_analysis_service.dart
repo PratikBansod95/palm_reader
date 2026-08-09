@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import 'package:image/image.dart' as img;
 
+import '../config/secrets.dart';
 import '../models/palm_result_model.dart';
 
 final palmAnalysisServiceProvider = Provider<PalmAnalysisService>((ref) {
@@ -16,40 +17,148 @@ final palmAnalysisServiceProvider = Provider<PalmAnalysisService>((ref) {
 /// Backward-compatible alias used by older call sites.
 final openAiPalmServiceProvider = palmAnalysisServiceProvider;
 
+enum AnalysisProvider { demo, openrouter, backend }
+
 class PalmAnalysisService {
   PalmAnalysisService({required this.httpClient});
 
+  /// `auto` (default) | `demo` | `openrouter` | `backend`
   static const analysisMode = String.fromEnvironment(
     'ANALYSIS_MODE',
-    defaultValue: 'demo',
+    defaultValue: 'auto',
   );
   static const _backendBaseUrl = String.fromEnvironment(
     'BACKEND_URL',
-    defaultValue: 'https://palm-reader-w4yy.onrender.com',
+    defaultValue: 'http://127.0.0.1:8080',
   );
   static const _appApiKey = String.fromEnvironment('BACKEND_APP_KEY');
+  static const _openRouterModel = String.fromEnvironment(
+    'OPENROUTER_MODEL',
+    defaultValue: 'google/gemma-4-26b-a4b-it:free',
+  );
 
   final http.Client httpClient;
 
-  bool get isDemoMode => analysisMode.toLowerCase() != 'backend';
+  AnalysisProvider get provider {
+    final mode = analysisMode.toLowerCase().trim();
+    if (mode == 'demo') return AnalysisProvider.demo;
+    if (mode == 'backend') return AnalysisProvider.backend;
+    if (mode == 'openrouter') {
+      return openRouterApiKey.isEmpty
+          ? AnalysisProvider.demo
+          : AnalysisProvider.openrouter;
+    }
+    // auto: prefer frontend OpenRouter when a key is present.
+    if (openRouterApiKey.isNotEmpty) return AnalysisProvider.openrouter;
+    return AnalysisProvider.demo;
+  }
+
+  bool get isDemoMode => provider == AnalysisProvider.demo;
 
   Future<PalmResultModel> fetchPalmReading({
     required Uint8List imageBytes,
     required String language,
     required String dominantHand,
   }) async {
-    if (isDemoMode) {
-      return _demoReading(
-        imageBytes: imageBytes,
-        language: language,
-        dominantHand: dominantHand,
+    switch (provider) {
+      case AnalysisProvider.demo:
+        return _demoReading(
+          imageBytes: imageBytes,
+          language: language,
+          dominantHand: dominantHand,
+        );
+      case AnalysisProvider.openrouter:
+        return _openRouterReading(
+          imageBytes: imageBytes,
+          language: language,
+          dominantHand: dominantHand,
+        );
+      case AnalysisProvider.backend:
+        return _backendReading(
+          imageBytes: imageBytes,
+          language: language,
+          dominantHand: dominantHand,
+        );
+    }
+  }
+
+  Future<PalmResultModel> _openRouterReading({
+    required Uint8List imageBytes,
+    required String language,
+    required String dominantHand,
+  }) async {
+    if (openRouterApiKey.isEmpty) {
+      throw Exception(
+        'OpenRouter key missing. Run .\\run_app.ps1 (uses .secrets/openrouter.key) or pass --dart-define=OPENROUTER_API_KEY=...',
       );
     }
-    return _backendReading(
-      imageBytes: imageBytes,
-      language: language,
-      dominantHand: dominantHand,
-    );
+
+    final prepared = _prepareImage(imageBytes);
+    final dataUrl =
+        'data:${prepared.mimeType};base64,${base64Encode(prepared.bytes)}';
+    final prompt = _buildPrompt(language: language, dominantHand: dominantHand);
+
+    try {
+      final response = await httpClient
+          .post(
+            Uri.parse('https://openrouter.ai/api/v1/chat/completions'),
+            headers: {
+              'Authorization': 'Bearer $openRouterApiKey',
+              'Content-Type': 'application/json',
+              'HTTP-Referer': 'https://github.com/PratikBansod95/palm_reader',
+              'X-Title': 'Palm Destiny',
+            },
+            body: jsonEncode({
+              'model': _openRouterModel,
+              'temperature': 0.85,
+              'max_tokens': 900,
+              'messages': [
+                {
+                  'role': 'system',
+                  'content':
+                      'You are an expert palmist and spiritual guide. Keep output warm, practical, and emotionally intelligent.',
+                },
+                {
+                  'role': 'user',
+                  'content': [
+                    {'type': 'text', 'text': prompt},
+                    {
+                      'type': 'image_url',
+                      'image_url': {'url': dataUrl},
+                    },
+                  ],
+                },
+              ],
+            }),
+          )
+          .timeout(const Duration(seconds: 75));
+
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        final error = _extractOpenRouterError(response.body);
+        throw Exception(_friendlyErrorForStatus(response.statusCode, error));
+      }
+
+      final decoded = jsonDecode(response.body) as Map<String, dynamic>;
+      final reading = _extractChatContent(decoded).trim();
+      if (reading.isEmpty) {
+        throw Exception(
+          'Palm analysis is unavailable right now. Please try again.',
+        );
+      }
+
+      return PalmResultModel(
+        fullReading: reading,
+        personality: '',
+        lifePath: '',
+        love: '',
+        wealth: '',
+        challenges: '',
+        guidance: '',
+        followUps: const [],
+      );
+    } catch (error) {
+      throw Exception(_friendlyNetworkError(error.toString()));
+    }
   }
 
   Future<PalmResultModel> _demoReading({
@@ -57,7 +166,6 @@ class PalmAnalysisService {
     required String language,
     required String dominantHand,
   }) async {
-    // Brief pause so the scanning animation has presence.
     await Future<void>.delayed(const Duration(milliseconds: 900));
 
     final stats = _imageStats(imageBytes);
@@ -111,7 +219,7 @@ class PalmAnalysisService {
 
     try {
       final streamedResponse =
-          await httpClient.send(request).timeout(const Duration(seconds: 55));
+          await httpClient.send(request).timeout(const Duration(seconds: 75));
       final response = await http.Response.fromStream(streamedResponse);
 
       if (response.statusCode < 200 || response.statusCode >= 300) {
@@ -141,6 +249,92 @@ class PalmAnalysisService {
     } catch (error) {
       throw Exception(_friendlyNetworkError(error.toString()));
     }
+  }
+
+  _PreparedImage _prepareImage(Uint8List imageBytes) {
+    try {
+      final decoded = img.decodeImage(imageBytes);
+      if (decoded == null) {
+        return _PreparedImage(bytes: imageBytes, mimeType: 'image/jpeg');
+      }
+      final resized = img.copyResize(
+        decoded,
+        width: decoded.width >= decoded.height ? 1280 : null,
+        height: decoded.height > decoded.width ? 1280 : null,
+      );
+      final jpg = img.encodeJpg(resized, quality: 82);
+      return _PreparedImage(bytes: Uint8List.fromList(jpg), mimeType: 'image/jpeg');
+    } catch (_) {
+      return _PreparedImage(bytes: imageBytes, mimeType: 'image/jpeg');
+    }
+  }
+
+  String _buildPrompt({
+    required String language,
+    required String dominantHand,
+  }) {
+    return '''
+Give a palmistry-style reading from this palm image. Prefer classical Indian palmistry knowledge and stay accurate where possible.
+Write as if speaking directly to the user in a natural, warm, intuitive voice.
+User selected language: $language.
+Dominant hand: $dominantHand.
+
+Style requirements:
+1) Write entirely in $language.
+2) Sound human and fluid, like a thoughtful live reading, not an app report.
+3) Keep it emotionally intelligent: supportive, honest, and gently mystical but grounded.
+4) Use second-person voice ("you") and avoid repetitive phrasing.
+5) Blend insights naturally across personality, life direction, love, money, challenge patterns, and practical next guidance.
+6) Keep it specific enough to feel personal, but avoid extreme claims or guaranteed predictions.
+7) If the image is unclear, briefly acknowledge uncertainty but still provide a best-effort reading.
+
+Formatting requirements:
+1) Output plain text only.
+2) No JSON, no markdown, no bullet points, no headings, no labels.
+3) Write 4 to 6 short-to-medium paragraphs.
+
+Safety rules:
+1) Do NOT predict death, terminal illness, divorce certainty, exact dates, or irreversible tragedies.
+2) Do NOT make medical, legal, or financial guarantees.
+3) Never create fear-based or manipulative responses.
+4) Provide balanced insights: strengths, challenges, and constructive guidance.
+'''.trim();
+  }
+
+  String _extractChatContent(Map<String, dynamic> decoded) {
+    final choices = decoded['choices'];
+    if (choices is! List || choices.isEmpty) return '';
+    final message = choices.first;
+    if (message is! Map<String, dynamic>) return '';
+    final content = message['message'];
+    if (content is! Map<String, dynamic>) return '';
+    final raw = content['content'];
+    if (raw is String) return raw;
+    if (raw is List) {
+      return raw
+          .map((part) {
+            if (part is Map<String, dynamic> && part['text'] is String) {
+              return part['text'] as String;
+            }
+            return '';
+          })
+          .join('\n');
+    }
+    return '';
+  }
+
+  String _extractOpenRouterError(String body) {
+    try {
+      final decoded = jsonDecode(body);
+      if (decoded is Map<String, dynamic>) {
+        final error = decoded['error'];
+        if (error is String) return error;
+        if (error is Map<String, dynamic> && error['message'] is String) {
+          return error['message'] as String;
+        }
+      }
+    } catch (_) {}
+    return body.isEmpty ? 'OpenRouter request failed' : body;
   }
 
   String _englishReading({
@@ -371,7 +565,7 @@ $light रिश्तों में, $l। आपके लिए प्र�
       return 'Analysis provider is currently rate-limited or quota-limited. Please try again in a few minutes.';
     }
     if (statusCode == 401 || statusCode == 403) {
-      return 'App authorization failed. Please contact support.';
+      return 'API authorization failed. Check your OpenRouter key.';
     }
     if (statusCode == 429) {
       return 'Too many requests. Please wait a minute and try again.';
@@ -380,18 +574,15 @@ $light रिश्तों में, $l। आपके लिए प्र�
       return 'Analysis took too long. Please retry.';
     }
     if (statusCode >= 500) {
-      return 'Server is temporarily unavailable. Please try again.';
+      return 'Analysis service is temporarily unavailable. Please try again.';
     }
     return rawError.isEmpty ? 'Request failed. Please try again.' : rawError;
   }
 
   String _friendlyNetworkError(String raw) {
     final text = raw.toLowerCase();
-    if (text.contains('10.0.2.2')) {
-      return 'Backend URL is using emulator host (10.0.2.2). On a physical device, use your deployed HTTPS backend URL.';
-    }
     if (text.contains('timed out') || text.contains('socketexception')) {
-      return 'Network timeout while contacting analysis server. Please check internet and retry.';
+      return 'Network timeout while contacting analysis provider. Please check internet and retry.';
     }
     if (text.startsWith('exception: ')) {
       return raw.substring(11);
@@ -408,11 +599,16 @@ $light रिश्तों में, $l। आपके लिए प्र�
           return message;
         }
       }
-    } catch (_) {
-      // Ignore parse errors and fallback below.
-    }
+    } catch (_) {}
     return body.isEmpty ? '' : body;
   }
+}
+
+class _PreparedImage {
+  const _PreparedImage({required this.bytes, required this.mimeType});
+
+  final Uint8List bytes;
+  final String mimeType;
 }
 
 class _DemoImageStats {
@@ -427,5 +623,4 @@ class _DemoImageStats {
   final double sharpness;
 }
 
-/// Legacy name kept for imports that still reference OpenAiPalmService.
 typedef OpenAiPalmService = PalmAnalysisService;
