@@ -81,7 +81,7 @@ class _LanguageHandScreenState extends State<LanguageHandScreen> {
                             ),
                             const SizedBox(height: 24),
                             const _SectionHeading(
-                              title: 'Dominant Hand',
+                              title: 'Hand to photograph',
                               icon: Icons.pan_tool_alt_rounded,
                             ),
                             const SizedBox(height: 12),
@@ -94,11 +94,11 @@ class _LanguageHandScreenState extends State<LanguageHandScreen> {
                             Padding(
                               padding: const EdgeInsets.only(left: 8),
                               child: Text(
-                                'The hand you write with',
+                                'Choose the palm you will capture next. AI will identify left/right from the photo itself.',
                                 style: textTheme.bodyLarge?.copyWith(
                                   color: AppColors.textPrimary
                                       .withValues(alpha: 0.9),
-                                  fontSize: 16,
+                                  fontSize: 15,
                                 ),
                               ),
                             ),

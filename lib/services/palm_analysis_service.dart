@@ -280,7 +280,14 @@ class PalmAnalysisService {
 Give a palmistry-style reading from this palm image. Prefer classical Indian palmistry knowledge and stay accurate where possible.
 Write as if speaking directly to the user in a natural, warm, intuitive voice.
 User selected language: $language.
-Dominant hand: $dominantHand.
+User marked their usual dominant/writing hand as: $dominantHand.
+
+CRITICAL hand-identification rules:
+1) First, carefully inspect the photo and decide whether the palm shown is a LEFT hand or a RIGHT hand (use thumb position, finger order, and palm orientation).
+2) Your reading MUST describe the hand that is actually visible in the image.
+3) Do NOT say "your right hand" or "your left hand" based on the form field above. Only name left/right from what you see in the photo.
+4) If the photographed hand differs from the user's stated dominant hand, still read the photographed hand, and you may briefly note that this is the hand shown in the image.
+5) The dominant-hand field is only background context for lifestyle interpretation, never a substitute for visual identification.
 
 Style requirements:
 1) Write entirely in $language.
@@ -290,6 +297,7 @@ Style requirements:
 5) Blend insights naturally across personality, life direction, love, money, challenge patterns, and practical next guidance.
 6) Keep it specific enough to feel personal, but avoid extreme claims or guaranteed predictions.
 7) If the image is unclear, briefly acknowledge uncertainty but still provide a best-effort reading.
+8) Mention early which hand you are reading from the photo (left or right), based only on visual evidence.
 
 Formatting requirements:
 1) Output plain text only.
@@ -399,7 +407,7 @@ Safety rules:
     final g = guidance[(seed ~/ 11) % guidance.length];
 
     return '''
-Looking at your $hand palm, the overall impression is of someone $t. There is a grounded intelligence here—less flashy, more enduring—and it shows in the way your life line and heart currents seem to support each other rather than compete.
+Looking at the palm in your photo (you selected $hand as the hand to capture), the overall impression is of someone $t. There is a grounded intelligence here—less flashy, more enduring—and it shows in the way your life line and heart currents seem to support each other rather than compete.
 
 $lightNote $contrastNote In relationships, $l. Love for you is less about spectacle and more about being met with steadiness.
 
@@ -467,7 +475,7 @@ As guidance for the season ahead: $g. Palmistry here is a mirror for reflection,
         : 'हथेली पर प्रकाश का संतुलन जीवन में संतुलन की खोज दर्शाता है।';
 
     return '''
-आपकी $hand हथेली को देखते हुए पहली छाप यह बनती है कि आप $t व्यक्ति हैं। यहाँ एक स्थिर बुद्धिमत्ता दिखती है—चमकदार शोर से अधिक टिकाऊ समझ—जहाँ जीवन रेखा और हृदय की धाराएँ एक-दूसरे का समर्थन करती हुई लगती हैं।
+आपकी फ़ोटो में दिख रही हथेली (आपने कैप्चर के लिए $hand चुना है) को देखते हुए पहली छाप यह बनती है कि आप $t व्यक्ति हैं। यहाँ एक स्थिर बुद्धिमत्ता दिखती है—चमकदार शोर से अधिक टिकाऊ समझ—जहाँ जीवन रेखा और हृदय की धाराएँ एक-दूसरे का समर्थन करती हुई लगती हैं।
 
 $light रिश्तों में, $l। आपके लिए प्रेम प्रदर्शन से अधिक स्थिर साथ का नाम है।
 

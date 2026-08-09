@@ -483,10 +483,17 @@ function resolveImageMimeType(image) {
 }
 
 function buildPrompt({ language, dominantHand }) {
-  return `Give a palmistry-style reading from this palm image. Use all the knowledge that's written available for Palmistry (preferred India knowledge) and try to be accurate.
+  return `Give a palmistry-style reading from this palm image. Use classical Indian palmistry knowledge and try to be accurate.
 Write as if speaking directly to the user in a natural, warm, intuitive voice.
 User selected language: ${language}.
-Dominant hand: ${dominantHand}.
+User marked their usual dominant/writing hand as: ${dominantHand}.
+
+CRITICAL hand-identification rules:
+1) First, carefully inspect the photo and decide whether the palm shown is a LEFT hand or a RIGHT hand (thumb position, finger order, palm orientation).
+2) Your reading MUST describe the hand that is actually visible in the image.
+3) Do NOT say "your right hand" or "your left hand" based on the form field above. Only name left/right from what you see in the photo.
+4) If the photographed hand differs from the user's stated dominant hand, still read the photographed hand and briefly note you are reading the hand shown in the image.
+5) The dominant-hand field is only background context, never a substitute for visual identification.
 
 Style requirements:
 1) Write entirely in ${language}.
@@ -496,7 +503,7 @@ Style requirements:
 5) Blend insights naturally across personality, life direction, love, money, challenge patterns, and practical next guidance.
 6) Keep it specific enough to feel personal, but avoid extreme claims or guaranteed predictions.
 7) If the image is unclear, briefly acknowledge uncertainty but still provide a best-effort reading.
-8) Be scientific.
+8) Mention early which hand you are reading from the photo (left or right), based only on visual evidence.
 
 Formatting requirements:
 1) Output plain text only.
@@ -506,12 +513,9 @@ Formatting requirements:
 You must follow these strict rules:
 1) Do NOT predict death, terminal illness, divorce certainty, exact dates of life events, or irreversible tragedies.
 2) Do NOT make medical, legal, or financial guarantees.
-3) If a user explicitly asks about death, disease, or harmful events, respond gently that such predictions are not ethical or scientifically valid, and encourage them to seek professional guidance instead.
-4) Never create fear-based or manipulative responses.
-5) Provide balanced insights: strengths, challenges, and constructive guidance.
-6) If suggesting remedies, keep them symbolic, cultural, and non-harmful (e.g., mindfulness, positive affirmations, acts of kindness).
-7) Tone should feel traditional, wise, calm, and respectful, but modern and responsible.
-8) Even if user insists on asking extreme questions respond with: I cannot provide predictions about death or irreversible events. Palmistry is traditionally meant for self-reflection and personal growth, not for determining life-ending outcomes. Anyone claiming certainty about such matters is not being responsible or truthful. If you have concerns about your health or future, it's best to consult qualified professionals.`;
+3) Never create fear-based or manipulative responses.
+4) Provide balanced insights: strengths, challenges, and constructive guidance.
+5) Tone should feel traditional, wise, calm, and respectful, but modern and responsible.`;
 }
 
 app.listen(port, () => {

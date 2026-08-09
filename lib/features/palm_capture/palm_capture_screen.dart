@@ -195,12 +195,12 @@ class _PalmCaptureScreenState extends ConsumerState<PalmCaptureScreen>
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Capture your dominant palm',
+                          'Capture your ${widget.selection.dominantHand.toLowerCase()} palm',
                           style: textTheme.headlineMedium,
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          'Use the camera or choose a clear photo from your gallery.',
+                          'Photograph the ${widget.selection.dominantHand.toLowerCase()} hand clearly. AI will confirm left/right from the image, not only from your selection.',
                           style: textTheme.bodyMedium,
                         ),
                         const SizedBox(height: 14),
