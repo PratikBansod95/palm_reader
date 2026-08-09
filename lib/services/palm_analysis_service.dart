@@ -155,6 +155,7 @@ class PalmAnalysisService {
         challenges: '',
         guidance: '',
         followUps: const [],
+        source: AnalysisSource.openrouter,
       );
     } catch (error) {
       throw Exception(_friendlyNetworkError(error.toString()));
@@ -192,6 +193,7 @@ class PalmAnalysisService {
       challenges: '',
       guidance: '',
       followUps: const [],
+      source: AnalysisSource.demo,
     );
   }
 
@@ -245,6 +247,7 @@ class PalmAnalysisService {
         challenges: '',
         guidance: '',
         followUps: const [],
+        source: AnalysisSource.backend,
       );
     } catch (error) {
       throw Exception(_friendlyNetworkError(error.toString()));

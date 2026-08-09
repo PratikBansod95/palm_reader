@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/theme/colors.dart';
 import '../../models/reading_context_model.dart';
+import '../../widgets/ai_status_banner.dart';
 import '../../widgets/animated_background.dart';
 
 class LanguageHandScreen extends StatefulWidget {
@@ -63,6 +64,8 @@ class _LanguageHandScreenState extends State<LanguageHandScreen> {
                               ),
                             ),
                             const SizedBox(height: 22),
+                            const AiStatusBanner(),
+                            const SizedBox(height: 18),
                             const _StepLabel(text: 'Step 1 of 3'),
                             const SizedBox(height: 24),
                             const _SectionHeading(

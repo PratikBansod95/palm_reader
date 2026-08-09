@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/theme/colors.dart';
 import '../../models/reading_context_model.dart';
 import '../../services/palm_analysis_service.dart';
+import '../../widgets/ai_status_banner.dart';
 import '../../widgets/animated_background.dart';
 
 class ScanningScreen extends ConsumerStatefulWidget {
@@ -162,17 +163,20 @@ class _ScanningScreenState extends ConsumerState<ScanningScreen>
               children: [
                 const SizedBox(height: 24),
                 Text('Destiny Scan', style: textTheme.headlineMedium),
-                const SizedBox(height: 8),
+                const SizedBox(height: 12),
+                const AiStatusBanner(compact: true, showCheckButton: false),
+                const SizedBox(height: 10),
                 Text(
                   switch (ref.read(palmAnalysisServiceProvider).provider) {
                     AnalysisProvider.demo =>
-                      'Preparing your personalized reading',
+                      'Offline demo — this reading will not call AI',
                     AnalysisProvider.openrouter =>
-                      'Reading your palm with AI guide',
+                      'Live AI — contacting OpenRouter now',
                     AnalysisProvider.backend =>
-                      'Connecting to the analysis guide',
+                      'Live AI — contacting your backend now',
                   },
                   style: textTheme.bodyMedium,
+                  textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 24),
                 Expanded(

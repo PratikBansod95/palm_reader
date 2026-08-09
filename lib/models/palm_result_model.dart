@@ -1,3 +1,5 @@
+enum AnalysisSource { demo, openrouter, backend }
+
 class PalmResultModel {
   const PalmResultModel({
     required this.fullReading,
@@ -8,6 +10,7 @@ class PalmResultModel {
     required this.challenges,
     required this.guidance,
     required this.followUps,
+    this.source = AnalysisSource.demo,
   });
 
   final String fullReading;
@@ -18,6 +21,10 @@ class PalmResultModel {
   final String challenges;
   final String guidance;
   final List<String> followUps;
+  final AnalysisSource source;
+
+  bool get isLiveAi =>
+      source == AnalysisSource.openrouter || source == AnalysisSource.backend;
 
   factory PalmResultModel.fromMap(Map<String, dynamic> map) {
     return PalmResultModel(
@@ -31,6 +38,7 @@ class PalmResultModel {
       followUps: (map['followUps'] as List<dynamic>? ?? [])
           .map((e) => e.toString())
           .toList(),
+      source: AnalysisSource.demo,
     );
   }
 }

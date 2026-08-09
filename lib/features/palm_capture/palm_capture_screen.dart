@@ -11,6 +11,7 @@ import 'package:permission_handler/permission_handler.dart';
 import '../../core/theme/colors.dart';
 import '../../models/reading_context_model.dart';
 import '../../services/image_validator.dart';
+import '../../widgets/ai_status_banner.dart';
 import '../../widgets/animated_background.dart';
 
 const List<double> _kDesaturateMatrix = <double>[
@@ -202,7 +203,9 @@ class _PalmCaptureScreenState extends ConsumerState<PalmCaptureScreen>
                           'Use the camera or choose a clear photo from your gallery.',
                           style: textTheme.bodyMedium,
                         ),
-                        const SizedBox(height: 22),
+                        const SizedBox(height: 14),
+                        const AiStatusBanner(compact: true),
+                        const SizedBox(height: 16),
                         Expanded(
                           child: DecoratedBox(
                             decoration: BoxDecoration(

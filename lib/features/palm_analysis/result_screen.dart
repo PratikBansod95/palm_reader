@@ -8,6 +8,7 @@ import '../../core/constants/animation_timings.dart';
 import '../../core/constants/app_strings.dart';
 import '../../core/theme/colors.dart';
 import '../../models/palm_result_model.dart';
+import '../../widgets/ai_status_banner.dart';
 import '../../widgets/animated_background.dart';
 import '../../widgets/primary_button.dart';
 import 'widgets/glowing_header.dart';
@@ -79,7 +80,12 @@ class _ResultScreenState extends State<ResultScreen> {
             padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
             children: [
               const GlowingHeader(title: 'Your Destiny Reading'),
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: AiSourceChip(isLiveAi: widget.result.isLiveAi),
+              ),
+              const SizedBox(height: 14),
               if (_hasNarrative)
                 ..._paragraphs.asMap().entries.map((entry) {
                   return TweenAnimationBuilder<double>(
