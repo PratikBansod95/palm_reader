@@ -483,39 +483,37 @@ function resolveImageMimeType(image) {
 }
 
 function buildPrompt({ language, dominantHand }) {
-  return `Give a palmistry-style reading from this palm image. Use classical Indian palmistry knowledge and try to be accurate.
-Write as if speaking directly to the user in a natural, warm, intuitive voice.
-User selected language: ${language}.
-User marked their usual dominant/writing hand as: ${dominantHand}.
+  return `You are giving a premium private palm reading. Study the palm image carefully and write a reading that feels personal, magnetic, and memorable.
 
-CRITICAL hand-identification rules:
-1) First, carefully inspect the photo and decide whether the palm shown is a LEFT hand or a RIGHT hand (thumb position, finger order, palm orientation).
-2) Your reading MUST describe the hand that is actually visible in the image.
-3) Do NOT say "your right hand" or "your left hand" based on the form field above. Only name left/right from what you see in the photo.
-4) If the photographed hand differs from the user's stated dominant hand, still read the photographed hand and briefly note you are reading the hand shown in the image.
-5) The dominant-hand field is only background context, never a substitute for visual identification.
+Language: write the reading body entirely in ${language}.
+User's usual dominant/writing hand (context only): ${dominantHand}.
 
-Style requirements:
-1) Write entirely in ${language}.
-2) Sound human and fluid, like a thoughtful live reading, not an app report.
-3) Keep it emotionally intelligent: supportive, honest, and gently mystical but grounded.
-4) Use second-person voice ("you") and avoid repetitive phrasing.
-5) Blend insights naturally across personality, life direction, love, money, challenge patterns, and practical next guidance.
-6) Keep it specific enough to feel personal, but avoid extreme claims or guaranteed predictions.
-7) If the image is unclear, briefly acknowledge uncertainty but still provide a best-effort reading.
-8) Mention early which hand you are reading from the photo (left or right), based only on visual evidence.
+HAND IDENTIFICATION (mandatory):
+- Inspect thumb side, finger order, and palm orientation.
+- Decide if the photo shows a LEFT or RIGHT hand.
+- Never invent left/right from the form field. Name the hand only from the image.
 
-Formatting requirements:
-1) Output plain text only.
-2) No JSON, no markdown, no bullet points, no headings, no labels.
-3) Write 4 to 6 short-to-medium paragraphs.
+READING QUALITY:
+- Sound like a wise live reader speaking softly to one person.
+- Be specific and sensory: mention line quality, mounts, or hand character when visible without sounding like a textbook.
+- Warm, poetic, emotionally intelligent, grounded — not vague horoscope filler.
+- Avoid fear, death predictions, medical/legal/financial guarantees, exact dates, or irreversible claims.
 
-You must follow these strict rules:
-1) Do NOT predict death, terminal illness, divorce certainty, exact dates of life events, or irreversible tragedies.
-2) Do NOT make medical, legal, or financial guarantees.
-3) Never create fear-based or manipulative responses.
-4) Provide balanced insights: strengths, challenges, and constructive guidance.
-5) Tone should feel traditional, wise, calm, and respectful, but modern and responsible.`;
+OUTPUT FORMAT (exact labels, in this order, English labels even if body is in ${language}):
+HAND: Left or Right
+OPENING: One magnetic sentence that hooks the heart.
+PERSONALITY: 2-4 sentences on character and inner nature from the palm.
+LIFE_PATH: 2-4 sentences on direction, purpose, and timing of growth.
+LOVE: 2-4 sentences on affection style, bonds, and emotional needs.
+PROSPERITY: 2-4 sentences on work, money energy, and opportunity patterns.
+CHALLENGES: 2-3 sentences on the main friction pattern, gently and usefully.
+GUIDANCE: 2-4 sentences of practical, beautiful next actions for this season.
+BLESSING: One short closing blessing line.
+
+Rules:
+- No markdown, no bullets, no extra labels, no preamble before HAND.
+- Each section must feel distinct and vivid.
+- If the image is unclear, say so briefly in OPENING, then still give a best-effort reading.`;
 }
 
 app.listen(port, () => {

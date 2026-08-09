@@ -26,22 +26,83 @@ class ResultScreen extends StatefulWidget {
 class _ResultScreenState extends State<ResultScreen> {
   int _visibleSections = 0;
   Timer? _timer;
-  bool get _hasNarrative => widget.result.fullReading.trim().isNotEmpty;
 
-  List<MapEntry<String, String>> get _sections => [
-        MapEntry('Personality', widget.result.personality),
-        MapEntry('Life Path', widget.result.lifePath),
-        MapEntry('Love', widget.result.love),
-        MapEntry('Wealth', widget.result.wealth),
-        MapEntry('Challenges', widget.result.challenges),
-        MapEntry('Guidance', widget.result.guidance),
+  bool get _structured => widget.result.hasStructuredSections;
+
+  List<_ReadingBlock> get _blocks {
+    final result = widget.result;
+    if (_structured) {
+      return [
+        if (result.opening.trim().isNotEmpty)
+          _ReadingBlock(
+            title: 'The First Glimpse',
+            body: result.opening,
+            icon: Icons.auto_awesome,
+            featured: true,
+          ),
+        if (result.personality.trim().isNotEmpty)
+          _ReadingBlock(
+            title: 'Your Nature',
+            body: result.personality,
+            icon: Icons.spa_outlined,
+          ),
+        if (result.lifePath.trim().isNotEmpty)
+          _ReadingBlock(
+            title: 'Life Path',
+            body: result.lifePath,
+            icon: Icons.timeline_outlined,
+          ),
+        if (result.love.trim().isNotEmpty)
+          _ReadingBlock(
+            title: 'Love & Bonds',
+            body: result.love,
+            icon: Icons.favorite_border_rounded,
+          ),
+        if (result.wealth.trim().isNotEmpty)
+          _ReadingBlock(
+            title: 'Prosperity',
+            body: result.wealth,
+            icon: Icons.trending_up_rounded,
+          ),
+        if (result.challenges.trim().isNotEmpty)
+          _ReadingBlock(
+            title: 'Gentle Challenges',
+            body: result.challenges,
+            icon: Icons.waves_rounded,
+          ),
+        if (result.guidance.trim().isNotEmpty)
+          _ReadingBlock(
+            title: 'Guidance',
+            body: result.guidance,
+            icon: Icons.lightbulb_outline_rounded,
+          ),
+        if (result.blessing.trim().isNotEmpty)
+          _ReadingBlock(
+            title: 'A Blessing',
+            body: result.blessing,
+            icon: Icons.brightness_2_outlined,
+            featured: true,
+          ),
       ];
+    }
 
-  List<String> get _paragraphs {
     return widget.result.fullReading
         .split(RegExp(r'\n\s*\n'))
         .map((p) => p.trim())
         .where((p) => p.isNotEmpty)
+        .toList()
+        .asMap()
+        .entries
+        .map(
+          (entry) => _ReadingBlock(
+            title: entry.key == 0 ? 'Your Reading' : 'Continued',
+            body: entry.value,
+            icon: entry.key == 0
+                ? Icons.auto_awesome
+                : Icons.menu_book_outlined,
+            featured: entry.key == 0,
+          ),
+        )
         .toList();
   }
 
@@ -49,20 +110,16 @@ class _ResultScreenState extends State<ResultScreen> {
   void initState() {
     super.initState();
     HapticFeedback.selectionClick();
-    if (_hasNarrative) {
-      _visibleSections = _sections.length;
-      return;
-    }
     _timer = Timer.periodic(AnimationTimings.sectionStagger, (timer) {
-      if (!mounted) {
-        return;
-      }
-      if (_visibleSections < _sections.length) {
+      if (!mounted) return;
+      if (_visibleSections < _blocks.length) {
         setState(() => _visibleSections++);
       } else {
         timer.cancel();
       }
     });
+    // Reveal first block immediately.
+    _visibleSections = 1;
   }
 
   @override
@@ -73,6 +130,8 @@ class _ResultScreenState extends State<ResultScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final hand = widget.result.handLabel.trim();
+
     return Scaffold(
       body: AnimatedBackground(
         child: SafeArea(
@@ -81,76 +140,62 @@ class _ResultScreenState extends State<ResultScreen> {
             children: [
               const GlowingHeader(title: 'Your Destiny Reading'),
               const SizedBox(height: 10),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: AiSourceChip(isLiveAi: widget.result.isLiveAi),
-              ),
-              const SizedBox(height: 14),
-              if (_hasNarrative)
-                ..._paragraphs.asMap().entries.map((entry) {
-                  return TweenAnimationBuilder<double>(
-                    tween: Tween(begin: 0, end: 1),
-                    duration: Duration(milliseconds: 420 + (entry.key * 120)),
-                    curve: Curves.easeOutCubic,
-                    builder: (context, value, child) {
-                      return Opacity(
-                        opacity: value,
-                        child: Transform.translate(
-                          offset: Offset(0, (1 - value) * 12),
-                          child: child,
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  AiSourceChip(isLiveAi: widget.result.isLiveAi),
+                  if (hand.isNotEmpty)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 7,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.softGold.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(
+                          color: AppColors.softGold.withValues(alpha: 0.75),
                         ),
-                      );
-                    },
-                    child: Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(18),
-                        decoration: BoxDecoration(
-                          color: AppColors.cardBase,
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: AppColors.cardStroke),
-                          boxShadow: [
-                            BoxShadow(
-                              color: AppColors.gold.withValues(alpha: 0.08),
-                              blurRadius: 18,
-                              spreadRadius: 1,
+                      ),
+                      child: Text(
+                        '${hand[0].toUpperCase()}${hand.substring(1).toLowerCase()} hand reading',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: AppColors.softGold,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 13,
                             ),
-                          ],
-                        ),
-                        child: Text(
-                          entry.value,
-                          style: Theme.of(context).textTheme.bodyLarge,
-                        ),
                       ),
                     ),
-                  );
-                })
-              else
-                ...List.generate(_sections.length, (i) {
-                  final visible = i < _visibleSections;
-                  final section = _sections[i];
-                  return AnimatedOpacity(
-                    opacity: visible ? 1 : 0,
-                    duration: const Duration(milliseconds: 500),
+                ],
+              ),
+              const SizedBox(height: 18),
+              ...List.generate(_blocks.length, (index) {
+                final visible = index < _visibleSections;
+                final block = _blocks[index];
+                return AnimatedOpacity(
+                  opacity: visible ? 1 : 0,
+                  duration: const Duration(milliseconds: 450),
+                  curve: Curves.easeOutCubic,
+                  child: AnimatedSlide(
+                    offset: visible ? Offset.zero : const Offset(0, 0.05),
+                    duration: const Duration(milliseconds: 450),
                     curve: Curves.easeOutCubic,
-                    child: AnimatedSlide(
-                      offset: visible ? Offset.zero : const Offset(0, 0.06),
-                      duration: const Duration(milliseconds: 500),
-                      curve: Curves.easeOutCubic,
-                      child: Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: SectionCard(
-                          title: section.key,
-                          body: section.value,
-                        ),
-                      ),
+                    child: Padding(
+                      padding: const EdgeInsets.only(bottom: 14),
+                      child: block.featured
+                          ? _FeaturedReadingCard(block: block)
+                          : SectionCard(
+                              title: block.title,
+                              body: block.body,
+                              icon: block.icon,
+                              initiallyExpanded: true,
+                            ),
                     ),
-                  );
-                }),
-              const SizedBox(height: 8),
-              _FollowUps(items: widget.result.followUps),
-              const SizedBox(height: 8),
+                  ),
+                );
+              }),
+              const SizedBox(height: 4),
               _ComingSoonCard(onTap: () => context.push('/subscription')),
               const SizedBox(height: 14),
               PrimaryButton(
@@ -174,32 +219,75 @@ class _ResultScreenState extends State<ResultScreen> {
   }
 }
 
-class _FollowUps extends StatelessWidget {
-  const _FollowUps({required this.items});
+class _ReadingBlock {
+  const _ReadingBlock({
+    required this.title,
+    required this.body,
+    required this.icon,
+    this.featured = false,
+  });
 
-  final List<String> items;
+  final String title;
+  final String body;
+  final IconData icon;
+  final bool featured;
+}
+
+class _FeaturedReadingCard extends StatelessWidget {
+  const _FeaturedReadingCard({required this.block});
+
+  final _ReadingBlock block;
 
   @override
   Widget build(BuildContext context) {
-    if (items.isEmpty) {
-      return const SizedBox.shrink();
-    }
-    return Column(
-      children: items
-          .map(
-            (item) => Container(
-              width: double.infinity,
-              margin: const EdgeInsets.only(bottom: 10),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              decoration: BoxDecoration(
-                color: AppColors.cardBase.withValues(alpha: 0.7),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: AppColors.cardStroke),
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 18),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(22),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            AppColors.softGold.withValues(alpha: 0.18),
+            AppColors.cardBase,
+            AppColors.deepIndigo.withValues(alpha: 0.55),
+          ],
+        ),
+        border: Border.all(color: AppColors.softGold.withValues(alpha: 0.7)),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.gold.withValues(alpha: 0.16),
+            blurRadius: 24,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(block.icon, color: AppColors.softGold, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                block.title,
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      color: AppColors.softGold,
+                    ),
               ),
-              child: Text(item, style: Theme.of(context).textTheme.bodyMedium),
-            ),
-          )
-          .toList(),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            block.body,
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                  height: 1.55,
+                  fontSize: 17,
+                ),
+          ),
+        ],
+      ),
     );
   }
 }

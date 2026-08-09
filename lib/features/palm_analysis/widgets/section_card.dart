@@ -7,17 +7,21 @@ class SectionCard extends StatefulWidget {
     required this.title,
     required this.body,
     super.key,
+    this.icon,
+    this.initiallyExpanded = false,
   });
 
   final String title;
   final String body;
+  final IconData? icon;
+  final bool initiallyExpanded;
 
   @override
   State<SectionCard> createState() => _SectionCardState();
 }
 
 class _SectionCardState extends State<SectionCard> {
-  bool _expanded = false;
+  late bool _expanded = widget.initiallyExpanded;
 
   @override
   Widget build(BuildContext context) {
@@ -33,7 +37,7 @@ class _SectionCardState extends State<SectionCard> {
           border: Border.all(color: AppColors.cardStroke),
           boxShadow: [
             BoxShadow(
-              color: AppColors.gold.withOpacity(0.08),
+              color: AppColors.gold.withValues(alpha: 0.08),
               blurRadius: 18,
               spreadRadius: 1,
             ),
@@ -49,16 +53,29 @@ class _SectionCardState extends State<SectionCard> {
               children: [
                 Row(
                   children: [
-                    Expanded(child: Text(widget.title, style: textTheme.titleLarge)),
+                    if (widget.icon != null) ...[
+                      Icon(
+                        widget.icon,
+                        color: AppColors.softGold.withValues(alpha: 0.9),
+                        size: 20,
+                      ),
+                      const SizedBox(width: 10),
+                    ],
+                    Expanded(
+                      child: Text(widget.title, style: textTheme.titleLarge),
+                    ),
                     AnimatedRotation(
                       turns: _expanded ? 0.5 : 0,
                       duration: const Duration(milliseconds: 300),
                       curve: Curves.easeOutCubic,
-                      child: const Icon(Icons.keyboard_arrow_down_rounded),
+                      child: Icon(
+                        Icons.keyboard_arrow_down_rounded,
+                        color: AppColors.softGold.withValues(alpha: 0.85),
+                      ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 10),
                 AnimatedCrossFade(
                   duration: const Duration(milliseconds: 300),
                   sizeCurve: Curves.easeOutCubic,
@@ -67,11 +84,14 @@ class _SectionCardState extends State<SectionCard> {
                       : CrossFadeState.showFirst,
                   firstChild: Text(
                     widget.body,
-                    style: textTheme.bodyMedium,
+                    style: textTheme.bodyMedium?.copyWith(height: 1.45),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  secondChild: Text(widget.body, style: textTheme.bodyLarge),
+                  secondChild: Text(
+                    widget.body,
+                    style: textTheme.bodyLarge?.copyWith(height: 1.55),
+                  ),
                 ),
               ],
             ),
@@ -81,4 +101,3 @@ class _SectionCardState extends State<SectionCard> {
     );
   }
 }
-

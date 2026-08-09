@@ -110,13 +110,13 @@ class PalmAnalysisService {
             },
             body: jsonEncode({
               'model': _openRouterModel,
-              'temperature': 0.85,
-              'max_tokens': 900,
+              'temperature': 0.9,
+              'max_tokens': 1200,
               'messages': [
                 {
                   'role': 'system',
                   'content':
-                      'You are an expert palmist and spiritual guide. Keep output warm, practical, and emotionally intelligent.',
+                      'You are a gifted Indian palmist and poetic spiritual guide. Your readings feel intimate, vivid, and emotionally intelligent—never generic. Always follow the exact labeled output format requested by the user.',
                 },
                 {
                   'role': 'user',
@@ -146,15 +146,8 @@ class PalmAnalysisService {
         );
       }
 
-      return PalmResultModel(
-        fullReading: reading,
-        personality: '',
-        lifePath: '',
-        love: '',
-        wealth: '',
-        challenges: '',
-        guidance: '',
-        followUps: const [],
+      return PalmResultModel.fromAiText(
+        reading,
         source: AnalysisSource.openrouter,
       );
     } catch (error) {
@@ -184,15 +177,8 @@ class PalmAnalysisService {
         ? _hindiReading(dominantHand: dominantHand, seed: seed, stats: stats)
         : _englishReading(dominantHand: dominantHand, seed: seed, stats: stats);
 
-    return PalmResultModel(
-      fullReading: reading,
-      personality: '',
-      lifePath: '',
-      love: '',
-      wealth: '',
-      challenges: '',
-      guidance: '',
-      followUps: const [],
+    return PalmResultModel.fromAiText(
+      reading,
       source: AnalysisSource.demo,
     );
   }
@@ -238,15 +224,8 @@ class PalmAnalysisService {
         );
       }
 
-      return PalmResultModel(
-        fullReading: reading,
-        personality: '',
-        lifePath: '',
-        love: '',
-        wealth: '',
-        challenges: '',
-        guidance: '',
-        followUps: const [],
+      return PalmResultModel.fromAiText(
+        reading,
         source: AnalysisSource.backend,
       );
     } catch (error) {
@@ -277,38 +256,38 @@ class PalmAnalysisService {
     required String dominantHand,
   }) {
     return '''
-Give a palmistry-style reading from this palm image. Prefer classical Indian palmistry knowledge and stay accurate where possible.
-Write as if speaking directly to the user in a natural, warm, intuitive voice.
-User selected language: $language.
-User marked their usual dominant/writing hand as: $dominantHand.
+You are giving a premium private palm reading. Study the palm image carefully and write a reading that feels personal, magnetic, and memorable.
 
-CRITICAL hand-identification rules:
-1) First, carefully inspect the photo and decide whether the palm shown is a LEFT hand or a RIGHT hand (use thumb position, finger order, and palm orientation).
-2) Your reading MUST describe the hand that is actually visible in the image.
-3) Do NOT say "your right hand" or "your left hand" based on the form field above. Only name left/right from what you see in the photo.
-4) If the photographed hand differs from the user's stated dominant hand, still read the photographed hand, and you may briefly note that this is the hand shown in the image.
-5) The dominant-hand field is only background context for lifestyle interpretation, never a substitute for visual identification.
+Language: write the reading body entirely in $language.
+User's usual dominant/writing hand (context only): $dominantHand.
 
-Style requirements:
-1) Write entirely in $language.
-2) Sound human and fluid, like a thoughtful live reading, not an app report.
-3) Keep it emotionally intelligent: supportive, honest, and gently mystical but grounded.
-4) Use second-person voice ("you") and avoid repetitive phrasing.
-5) Blend insights naturally across personality, life direction, love, money, challenge patterns, and practical next guidance.
-6) Keep it specific enough to feel personal, but avoid extreme claims or guaranteed predictions.
-7) If the image is unclear, briefly acknowledge uncertainty but still provide a best-effort reading.
-8) Mention early which hand you are reading from the photo (left or right), based only on visual evidence.
+HAND IDENTIFICATION (mandatory):
+- Inspect thumb side, finger order, and palm orientation.
+- Decide if the photo shows a LEFT or RIGHT hand.
+- Never invent left/right from the form field. Name the hand only from the image.
 
-Formatting requirements:
-1) Output plain text only.
-2) No JSON, no markdown, no bullet points, no headings, no labels.
-3) Write 4 to 6 short-to-medium paragraphs.
+READING QUALITY:
+- Sound like a wise live reader speaking softly to one person.
+- Be specific and sensory: mention line quality, mounts, or hand character when visible (life line, heart line, head line, fate line, Venus mount, etc.) without sounding like a textbook.
+- Warm, poetic, emotionally intelligent, grounded — not vague horoscope filler.
+- Avoid fear, death predictions, medical/legal/financial guarantees, exact dates, or irreversible claims.
+- Give hope with honesty: strengths, soft challenges, and useful next steps.
 
-Safety rules:
-1) Do NOT predict death, terminal illness, divorce certainty, exact dates, or irreversible tragedies.
-2) Do NOT make medical, legal, or financial guarantees.
-3) Never create fear-based or manipulative responses.
-4) Provide balanced insights: strengths, challenges, and constructive guidance.
+OUTPUT FORMAT (exact labels, in this order, English labels even if body is in $language):
+HAND: Left or Right
+OPENING: One magnetic sentence that hooks the heart.
+PERSONALITY: 2-4 sentences on character and inner nature from the palm.
+LIFE_PATH: 2-4 sentences on direction, purpose, and timing of growth.
+LOVE: 2-4 sentences on affection style, bonds, and emotional needs.
+PROSPERITY: 2-4 sentences on work, money energy, and opportunity patterns.
+CHALLENGES: 2-3 sentences on the main friction pattern, gently and usefully.
+GUIDANCE: 2-4 sentences of practical, beautiful next actions for this season.
+BLESSING: One short closing blessing line.
+
+Rules:
+- No markdown, no bullets, no extra labels, no preamble before HAND.
+- Each section must feel distinct and vivid.
+- If the image is unclear, say so briefly in OPENING, then still give a best-effort reading.
 '''.trim();
   }
 
@@ -399,28 +378,25 @@ Safety rules:
         ? 'Defined ridges point to strong inner preferences—you know what feels right even when you hesitate to say it.'
         : 'Softer line contrast suggests a flexible temperament that can adapt without losing your core.';
 
-    final hand = dominantHand.toLowerCase() == 'left' ? 'left' : 'right';
+    final hand = dominantHand.toLowerCase() == 'left' ? 'Left' : 'Right';
     final t = traits[seed % traits.length];
-    final l = _lowerFirst(love[(seed ~/ 3) % love.length]);
-    final m = _lowerFirst(money[(seed ~/ 5) % money.length]);
-    final c = _lowerFirst(challenge[(seed ~/ 7) % challenge.length]);
+    final l = love[(seed ~/ 3) % love.length];
+    final m = money[(seed ~/ 5) % money.length];
+    final c = challenge[(seed ~/ 7) % challenge.length];
     final g = guidance[(seed ~/ 11) % guidance.length];
 
     return '''
-Looking at the palm in your photo (you selected $hand as the hand to capture), the overall impression is of someone $t. There is a grounded intelligence here—less flashy, more enduring—and it shows in the way your life line and heart currents seem to support each other rather than compete.
-
-$lightNote $contrastNote In relationships, $l. Love for you is less about spectacle and more about being met with steadiness.
-
-Around work and resources, $m. Ambition is present, but it prefers craftsmanship over chaos. The challenge pattern that rises most clearly is this: $c.
-
-As guidance for the season ahead: $g. Palmistry here is a mirror for reflection, not a verdict. Use these impressions as permission to move with more self-trust, one deliberate choice at a time.
+HAND: $hand
+OPENING: Your palm carries a quiet radiance—the kind that reveals itself only to those who look with patience.
+PERSONALITY: You come across as someone $t. $contrastNote
+LIFE_PATH: $lightNote Your path favors depth over noise, and progress that lasts longer than applause.
+LOVE: $l Bonds deepen when you feel emotionally safe and respected for your pace.
+PROSPERITY: $m Craftsmanship and steady focus unlock more for you than scattered ambition.
+CHALLENGES: $c The friction softens when you trust the clarity you already hold.
+GUIDANCE: $g Let one sincere choice this week become proof that you are ready.
+BLESSING: May your hands remember their wisdom every time you choose yourself with gentleness.
 '''
         .trim();
-  }
-
-  String _lowerFirst(String value) {
-    if (value.isEmpty) return value;
-    return '${value[0].toLowerCase()}${value.substring(1)}';
   }
 
   String _hindiReading({
@@ -464,7 +440,7 @@ As guidance for the season ahead: $g. Palmistry here is a mirror for reflection,
       'दूसरों को देते करुणा अपने प्रति भी रखें',
     ];
 
-    final hand = dominantHand.toLowerCase() == 'left' ? 'बाएँ' : 'दाएँ';
+    final hand = dominantHand.toLowerCase() == 'left' ? 'Left' : 'Right';
     final t = traits[seed % traits.length];
     final l = love[(seed ~/ 3) % love.length];
     final m = money[(seed ~/ 5) % money.length];
@@ -475,13 +451,15 @@ As guidance for the season ahead: $g. Palmistry here is a mirror for reflection,
         : 'हथेली पर प्रकाश का संतुलन जीवन में संतुलन की खोज दर्शाता है।';
 
     return '''
-आपकी फ़ोटो में दिख रही हथेली (आपने कैप्चर के लिए $hand चुना है) को देखते हुए पहली छाप यह बनती है कि आप $t व्यक्ति हैं। यहाँ एक स्थिर बुद्धिमत्ता दिखती है—चमकदार शोर से अधिक टिकाऊ समझ—जहाँ जीवन रेखा और हृदय की धाराएँ एक-दूसरे का समर्थन करती हुई लगती हैं।
-
-$light रिश्तों में, $l। आपके लिए प्रेम प्रदर्शन से अधिक स्थिर साथ का नाम है।
-
-काम और संसाधनों के बारे में, $m। महत्वाकांक्षा है, पर वह अव्यवस्था से अधिक कुशलता पसंद करती है। सबसे स्पष्ट चुनौती यह है: $c।
-
-आने वाले समय के लिए मार्गदर्शन: $g। यह वाचन आत्म-चिंतन के लिए एक दर्पण है, अंतिम फैसला नहीं। इन संकेतों को आत्मविश्वास के साथ एक सोच-समझे कदम आगे बढ़ाने की अनुमति समझें।
+HAND: $hand
+OPENING: आपकी हथेली में एक शांत चमक है—जो धैर्य से देखने वाले को ही अपना सच दिखाती है।
+PERSONALITY: आप $t व्यक्ति हैं। आपकी प्रकृति में स्थिर बुद्धिमत्ता और कोमल शक्ति दोनों बसते हैं।
+LIFE_PATH: $light आपका मार्ग शोर से अधिक गहराई और टिकाऊ प्रगति की ओर है।
+LOVE: $l प्रेम आपके लिए प्रदर्शन नहीं, सुरक्षित और सम्मानित साथ है।
+PROSPERITY: $m आपके लिए सफलता बिखरे प्रयासों से नहीं, पूरे किए गए कामों से खिलती है।
+CHALLENGES: $c यह चुनौती तब हल होती है जब आप अपनी पहले से मौजूद स्पष्टता पर विश्वास करते हैं।
+GUIDANCE: $g इस सप्ताह एक सच्चा चुनाव आपकी तैयारी का प्रमाण बने।
+BLESSING: आपकी हथेलियाँ आपको हर बार याद दिलाएँ कि कोमलता भी एक शक्ति है।
 '''
         .trim();
   }
