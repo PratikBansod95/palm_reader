@@ -5,14 +5,20 @@ import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import multer from 'multer';
 import OpenAI from 'openai';
+import sharp from 'sharp';
 
 const app = express();
 
 const port = Number(process.env.PORT || 8080);
 const openAiModel = process.env.OPENAI_MODEL || 'gpt-4.1-nano';
 const geminiModel = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
+const openRouterModel =
+  process.env.OPENROUTER_MODEL || 'google/gemma-4-26b-a4b-it:free';
 const openAiApiKey = (process.env.OPENAI_API_KEY || '').trim();
 const geminiApiKey = (process.env.GEMINI_API_KEY || '').trim();
+const openRouterApiKey = (process.env.OPENROUTER_API_KEY || '').trim();
+const openRouterSiteUrl = (process.env.OPENROUTER_SITE_URL || 'https://github.com/PratikBansod95/palm_reader').trim();
+const openRouterAppName = (process.env.OPENROUTER_APP_NAME || 'Palm Destiny').trim();
 const appApiKey = (process.env.APP_API_KEY || '').trim();
 const openAiTimeoutMs = Number(process.env.OPENAI_TIMEOUT_MS || 45000);
 const allowedOrigins = String(process.env.CORS_ORIGIN || '')
@@ -24,7 +30,7 @@ const trustProxy = process.env.TRUST_PROXY ?? (process.env.RENDER ? '1' : 'false
 const configuredProvider = resolveProvider();
 if (!configuredProvider) {
   throw new Error(
-    'Set GEMINI_API_KEY (preferred) or OPENAI_API_KEY. Optionally set AI_PROVIDER=gemini|openai.',
+    'Set OPENROUTER_API_KEY, GEMINI_API_KEY, or OPENAI_API_KEY. Optionally set AI_PROVIDER=openrouter|gemini|openai.',
   );
 }
 
@@ -116,6 +122,13 @@ app.get('/api/health', (_req, res) => {
   res.json({
     ok: true,
     provider: configuredProvider,
+    model:
+      configuredProvider === 'openrouter'
+        ? openRouterModel
+        : configuredProvider === 'gemini'
+          ? geminiModel
+          : openAiModel,
+    openrouterConfigured: Boolean(openRouterApiKey),
     geminiConfigured: Boolean(geminiApiKey),
     openaiConfigured: Boolean(openAiApiKey),
   });
@@ -150,22 +163,16 @@ app.post('/api/palm-reading', palmReadingLimiter, upload.single('image'), async 
     }
 
     const prompt = buildPrompt({ language, dominantHand });
-    const base64Image = image.buffer.toString('base64');
+    const prepared = await prepareImageForModel(image.buffer, detectedMimeType);
 
     const reading = await withTimeout(
-      configuredProvider === 'gemini'
-        ? generateWithGemini({
-            prompt,
-            base64Image,
-            mimeType: detectedMimeType,
-          })
-        : generateWithOpenAI({
-            prompt,
-            base64Image,
-            mimeType: detectedMimeType,
-          }),
+      runProvider({
+        prompt,
+        base64Image: prepared.base64,
+        mimeType: prepared.mimeType,
+      }),
       openAiTimeoutMs,
-      'OpenAI request timed out',
+      'analysis request timed out',
     );
 
     if (!reading) {
@@ -183,7 +190,7 @@ app.post('/api/palm-reading', palmReadingLimiter, upload.single('image'), async 
       return res.status(503).json({ error: 'upstream_rate_limit' });
     }
 
-    if (error?.message === 'OpenAI request timed out') {
+    if (error?.message === 'analysis request timed out') {
       return res.status(504).json({ error: 'analysis timeout' });
     }
 
@@ -199,11 +206,17 @@ app.post('/api/palm-reading', palmReadingLimiter, upload.single('image'), async 
 
 function resolveProvider() {
   const requested = String(process.env.AI_PROVIDER || '').trim().toLowerCase();
+  if (requested === 'openrouter') {
+    return openRouterApiKey ? 'openrouter' : null;
+  }
   if (requested === 'gemini') {
     return geminiApiKey ? 'gemini' : null;
   }
   if (requested === 'openai') {
     return openAiApiKey ? 'openai' : null;
+  }
+  if (openRouterApiKey) {
+    return 'openrouter';
   }
   if (geminiApiKey) {
     return 'gemini';
@@ -212,6 +225,104 @@ function resolveProvider() {
     return 'openai';
   }
   return null;
+}
+
+async function runProvider({ prompt, base64Image, mimeType }) {
+  if (configuredProvider === 'openrouter') {
+    return generateWithOpenRouter({ prompt, base64Image, mimeType });
+  }
+  if (configuredProvider === 'gemini') {
+    return generateWithGemini({ prompt, base64Image, mimeType });
+  }
+  return generateWithOpenAI({ prompt, base64Image, mimeType });
+}
+
+async function prepareImageForModel(buffer, mimeType) {
+  try {
+    const optimized = await sharp(buffer)
+      .rotate()
+      .resize({
+        width: 1280,
+        height: 1280,
+        fit: 'inside',
+        withoutEnlargement: true,
+      })
+      .jpeg({ quality: 82, mozjpeg: true })
+      .toBuffer();
+
+    return {
+      base64: optimized.toString('base64'),
+      mimeType: 'image/jpeg',
+    };
+  } catch (error) {
+    console.warn('[PalmRequest] image optimize failed, using original', error?.message || error);
+    return {
+      base64: buffer.toString('base64'),
+      mimeType,
+    };
+  }
+}
+
+async function generateWithOpenRouter({ prompt, base64Image, mimeType }) {
+  if (!openRouterApiKey) {
+    const err = new Error('OpenRouter is not configured');
+    err.status = 500;
+    throw err;
+  }
+
+  const dataUrl = `data:${mimeType};base64,${base64Image}`;
+  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${openRouterApiKey}`,
+      'Content-Type': 'application/json',
+      'HTTP-Referer': openRouterSiteUrl,
+      'X-Title': openRouterAppName,
+    },
+    body: JSON.stringify({
+      model: openRouterModel,
+      temperature: 0.85,
+      max_tokens: 900,
+      messages: [
+        {
+          role: 'system',
+          content:
+            'You are an expert palmist and spiritual guide. Keep output warm, practical, and emotionally intelligent.',
+        },
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: prompt },
+            { type: 'image_url', image_url: { url: dataUrl } },
+          ],
+        },
+      ],
+    }),
+  });
+
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const message =
+      payload?.error?.message ||
+      payload?.error ||
+      `OpenRouter request failed (${response.status})`;
+    const err = new Error(typeof message === 'string' ? message : 'OpenRouter request failed');
+    err.status = response.status;
+    err.code = response.status;
+    throw err;
+  }
+
+  const content = payload?.choices?.[0]?.message?.content;
+  if (typeof content === 'string') {
+    return content.trim();
+  }
+  if (Array.isArray(content)) {
+    return content
+      .map((part) => (typeof part?.text === 'string' ? part.text : ''))
+      .join('\n')
+      .trim();
+  }
+  return '';
 }
 
 async function generateWithGemini({ prompt, base64Image, mimeType }) {
