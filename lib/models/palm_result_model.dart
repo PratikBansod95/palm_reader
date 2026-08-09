@@ -32,13 +32,18 @@ class PalmResultModel {
   bool get isLiveAi =>
       source == AnalysisSource.openrouter || source == AnalysisSource.backend;
 
+  bool get isUnclearHand =>
+      handLabel.trim().toLowerCase() == 'unclear';
+
   bool get hasStructuredSections =>
+      opening.trim().isNotEmpty ||
       personality.trim().isNotEmpty ||
       lifePath.trim().isNotEmpty ||
       love.trim().isNotEmpty ||
       wealth.trim().isNotEmpty ||
       challenges.trim().isNotEmpty ||
-      guidance.trim().isNotEmpty;
+      guidance.trim().isNotEmpty ||
+      blessing.trim().isNotEmpty;
 
   factory PalmResultModel.fromMap(Map<String, dynamic> map) {
     return PalmResultModel(

@@ -35,9 +35,13 @@ class _ResultScreenState extends State<ResultScreen> {
       return [
         if (result.opening.trim().isNotEmpty)
           _ReadingBlock(
-            title: 'The First Glimpse',
+            title: result.isUnclearHand
+                ? 'Clearer Photo Needed'
+                : 'The First Glimpse',
             body: result.opening,
-            icon: Icons.auto_awesome,
+            icon: result.isUnclearHand
+                ? Icons.photo_camera_outlined
+                : Icons.auto_awesome,
             featured: true,
           ),
         if (result.personality.trim().isNotEmpty)
@@ -159,7 +163,9 @@ class _ResultScreenState extends State<ResultScreen> {
                         ),
                       ),
                       child: Text(
-                        '${hand[0].toUpperCase()}${hand.substring(1).toLowerCase()} hand reading',
+                        widget.result.isUnclearHand
+                            ? 'Photo unclear — retake'
+                            : '${hand[0].toUpperCase()}${hand.substring(1).toLowerCase()} hand reading',
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                               color: AppColors.softGold,
                               fontWeight: FontWeight.w600,
