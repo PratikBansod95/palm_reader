@@ -6,7 +6,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.palm_reader"
+    namespace = "com.palmdestiny.palm_reader"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -20,7 +20,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.palm_reader"
+        applicationId = "com.palmdestiny.palm_reader"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
