@@ -6,6 +6,7 @@ import rateLimit from 'express-rate-limit';
 import multer from 'multer';
 import OpenAI from 'openai';
 import sharp from 'sharp';
+import crypto from 'crypto';
 
 const app = express();
 
@@ -162,8 +163,13 @@ app.post('/api/palm-reading', palmReadingLimiter, upload.single('image'), async 
       return res.status(400).json({ error: 'invalid image type' });
     }
 
-    const prompt = buildPrompt({ language, dominantHand });
     const prepared = await prepareImageForModel(image.buffer, detectedMimeType);
+    const photoId = crypto
+      .createHash('sha1')
+      .update(prepared.base64.slice(0, 4000))
+      .digest('hex')
+      .slice(0, 8);
+    const prompt = buildPrompt({ language, dominantHand, photoId });
 
     const reading = await withTimeout(
       runProvider({
@@ -281,19 +287,21 @@ async function generateWithOpenRouter({ prompt, base64Image, mimeType }) {
     },
     body: JSON.stringify({
       model: openRouterModel,
-      temperature: 0.85,
-      max_tokens: 900,
+      temperature: 1.0,
+      top_p: 0.95,
+      max_tokens: 1200,
+      seed: Math.floor(Math.random() * 1_000_000_000),
       messages: [
         {
           role: 'system',
           content:
-            'You are a gifted Indian palmist and poetic spiritual guide. Your readings feel intimate, vivid, and emotionally intelligent?never generic. Anchor every claim to a visible palm feature. Never invent a reading when no clear hand is in the image. Always follow the exact labeled output format requested by the user.',
+            'You are a gifted Indian palmist and poetic spiritual guide. Your readings feel intimate, vivid, and emotionally intelligent - never generic. You ALWAYS look at the attached palm photo first. Anchor every claim to a visible feature in THIS photo. Never invent a reading when no clear hand is in the image. Never reuse the same opening, metaphors, or section wording across different photos. Always follow the exact labeled output format requested by the user.',
         },
         {
           role: 'user',
           content: [
-            { type: 'text', text: prompt },
             { type: 'image_url', image_url: { url: dataUrl } },
+            { type: 'text', text: prompt },
           ],
         },
       ],
@@ -482,11 +490,13 @@ function resolveImageMimeType(image) {
   return null;
 }
 
-function buildPrompt({ language, dominantHand }) {
-  return `You are giving a premium private palm reading. Study the palm image carefully and write a reading that feels personal, magnetic, and memorable ? the kind of reading someone screenshots and sends to a friend saying "this is scary accurate."
+function buildPrompt({ language, dominantHand, photoId }) {
+  return `You are giving a premium private palm reading. Study the palm image carefully and write a reading that feels personal, magnetic, and memorable - the kind of reading someone screenshots and sends to a friend saying "this is scary accurate."
 
 Language: write the reading body entirely in ${language}.
 User's usual dominant/writing hand (context only, not to be used to determine which hand appears in the photo): ${dominantHand}.
+Photo id for this request (unique to this image): ${photoId}.
+This reading must be unique to photo id ${photoId}. Do not reuse openings, metaphors, or section wording from any other reading.
 
 IMAGE CHECK (mandatory, first step):
 - If the image does not clearly show a human palm/hand, do not fabricate a reading. Output only:
@@ -500,44 +510,47 @@ HAND IDENTIFICATION (mandatory, when a hand is visible):
 - Never infer left/right from the form field. Name the hand only from the image.
 
 HOW TO MAKE THIS FEEL REAL (mandatory technique):
+- Look at THIS photo before writing. OPENING must name one concrete visible detail unique to this image (a specific line curve/break/branch, mount fullness, finger proportion, crease pattern, or texture).
 - Anchor every claim to something visible: a specific line, its depth, length, branch, break, curve, or a mount's fullness, a finger's length relative to another, the hand's texture or temperature-look. Never make a claim you can't tie to a visible feature.
 - Vary sentence length on purpose. Let some lines be short and land hard. Don't write four same-length sentences in a row.
-- Use one concrete, unexpected image per section instead of abstract mood words. Not "you are creative" ? instead, point to what that creativity actually looks like in their life (an unfinished project, a room rearranged at midnight, a habit of starting three things at once).
+- Use one concrete, unexpected image per section instead of abstract mood words. Not "you are creative" - instead, point to what that creativity actually looks like in their life (an unfinished project, a room rearranged at midnight, a habit of starting three things at once).
 - Plant one detail in PERSONALITY or LIFE_PATH and pay it off later in GUIDANCE or BLESSING, so the reading feels like it's about one specific person, not a template.
-- Write like you're noticing something in real time ("there?see how the line curves back toward the thumb"), not reciting a memorized meaning.
+- Write like you're noticing something in real time ("there - see how the line curves back toward the thumb"), not reciting a memorized meaning.
 
-BANNED PATTERNS (these are the tells of a fake/generic reading ? never use them):
-- Generic openers: "Your hand tells a story," "The universe has written," "I see great things ahead"
+BANNED PATTERNS (these are the tells of a fake/generic reading - never use them):
+- Generic openers: "Your hand tells a story," "The universe has written," "I see great things ahead," "Your palm carries a quiet radiance"
 - Stock phrases: "old soul," "everything happens for a reason," "trust the journey," "your path is unique," "special gift," "destined for greatness"
 - Vague hedge-everything statements that could apply to anyone
 - Listing traits without tying them to a visible feature
-- Ending every section on the same upbeat note ? let CHALLENGES actually feel like a challenge before GUIDANCE resolves it
+- Ending every section on the same upbeat note - let CHALLENGES actually feel like a challenge before GUIDANCE resolves it
+- Copy-paste sameness: if this reading could fit a different palm photo equally well, rewrite until it couldn't
 
 READING QUALITY:
 - Sound like a wise live reader speaking softly to one person, noticing details as they go.
-- Warm, poetic, emotionally intelligent, grounded ? never vague horoscope filler.
+- Warm, poetic, emotionally intelligent, grounded - never vague horoscope filler.
 - Avoid fear, death predictions, medical/legal/financial guarantees, exact dates.
 - Comment only on palmistry-relevant features (lines, mounts, shape, texture, finger proportions). Never remark on skin tone, scars, jewelry, or other personal appearance details.
-- If the hand appears to belong to a minor, keep LOVE focused on friendship/family connection ? never romantic or sexual framing.
-- Give hope with honesty: real strengths, one honest soft challenge, and a genuinely useful next step ? not just comfort.
+- If the hand appears to belong to a minor, keep LOVE focused on friendship/family connection - never romantic or sexual framing.
+- Give hope with honesty: real strengths, one honest soft challenge, and a genuinely useful next step - not just comfort.
 - Target roughly 220-320 words total across all sections.
 
 OUTPUT FORMAT (exact labels, in this order, each label on its own line, one blank line between sections):
 HAND: Left or Right
-OPENING: One magnetic sentence that hooks the heart ? should feel like the reader just noticed something true about them.
+OPENING: One magnetic sentence that hooks the heart - must include one concrete visible detail from THIS photo.
 PERSONALITY: 2-4 sentences, anchored to a specific visible feature.
 LIFE_PATH: 2-4 sentences, anchored to a specific visible feature.
 LOVE: 2-4 sentences, anchored to a specific visible feature.
 PROSPERITY: 2-4 sentences, anchored to a specific visible feature.
-CHALLENGES: 2-3 sentences ? name a real, specific soft challenge, don't soften it into nothing.
-GUIDANCE: 2-4 sentences ? resolve or pay off something planted earlier.
+CHALLENGES: 2-3 sentences - name a real, specific soft challenge, don't soften it into nothing.
+GUIDANCE: 2-4 sentences - resolve or pay off something planted earlier.
 BLESSING: One short closing blessing line, specific to this person, not generic.
 
 Rules:
 - No markdown, no bullets, no extra labels, no preamble before HAND.
-- Each section must feel distinct and vivid ? no recycled phrasing, no recycled sentence structure across sections.
+- Each section must feel distinct and vivid - no recycled phrasing, no recycled sentence structure across sections.
 - If the image is unclear but a hand is visible, say so briefly in OPENING, then still give a best-effort reading.`;
 }
+
 
 app.listen(port, () => {
   console.log(`Palm backend listening on port ${port} (provider=${configuredProvider})`);

@@ -94,9 +94,15 @@ class PalmAnalysisService {
     }
 
     final prepared = _prepareImage(imageBytes);
+    final photoId = _imageFingerprint(prepared.bytes);
     final dataUrl =
         'data:${prepared.mimeType};base64,${base64Encode(prepared.bytes)}';
-    final prompt = _buildPrompt(language: language, dominantHand: dominantHand);
+    final prompt = _buildPrompt(
+      language: language,
+      dominantHand: dominantHand,
+      photoId: photoId,
+    );
+    final requestSeed = Random().nextInt(1 << 30);
 
     try {
       final response = await httpClient
@@ -110,22 +116,25 @@ class PalmAnalysisService {
             },
             body: jsonEncode({
               'model': _openRouterModel,
-              'temperature': 0.9,
+              'temperature': 1.0,
+              'top_p': 0.95,
               'max_tokens': 1200,
+              'seed': requestSeed,
               'messages': [
                 {
                   'role': 'system',
                   'content':
-                      'You are a gifted Indian palmist and poetic spiritual guide. Your readings feel intimate, vivid, and emotionally intelligent—never generic. Anchor every claim to a visible palm feature. Never invent a reading when no clear hand is in the image. Always follow the exact labeled output format requested by the user.',
+                      'You are a gifted Indian palmist and poetic spiritual guide. Your readings feel intimate, vivid, and emotionally intelligent—never generic. You ALWAYS look at the attached palm photo first. Anchor every claim to a visible feature in THIS photo. Never invent a reading when no clear hand is in the image. Never reuse the same opening, metaphors, or section wording across different photos. Always follow the exact labeled output format requested by the user.',
                 },
                 {
                   'role': 'user',
+                  // Image first so the vision model actually attends to the palm.
                   'content': [
-                    {'type': 'text', 'text': prompt},
                     {
                       'type': 'image_url',
                       'image_url': {'url': dataUrl},
                     },
+                    {'type': 'text', 'text': prompt},
                   ],
                 },
               ],
@@ -163,6 +172,7 @@ class PalmAnalysisService {
     await Future<void>.delayed(const Duration(milliseconds: 900));
 
     final stats = _imageStats(imageBytes);
+    final photoId = _imageFingerprint(imageBytes);
     final seed = _seedFrom(
       language: language,
       dominantHand: dominantHand,
@@ -170,12 +180,21 @@ class PalmAnalysisService {
       contrast: stats.contrast,
       sharpness: stats.sharpness,
       byteLength: imageBytes.length,
+      photoId: photoId,
     );
 
     final reading = language.toLowerCase().startsWith('hindi') ||
             language.toLowerCase().startsWith('हिंदी')
-        ? _hindiReading(dominantHand: dominantHand, seed: seed, stats: stats)
-        : _englishReading(dominantHand: dominantHand, seed: seed, stats: stats);
+        ? _hindiReading(
+            dominantHand: dominantHand,
+            seed: seed,
+            stats: stats,
+          )
+        : _englishReading(
+            dominantHand: dominantHand,
+            seed: seed,
+            stats: stats,
+          );
 
     return PalmResultModel.fromAiText(
       reading,
@@ -254,12 +273,15 @@ class PalmAnalysisService {
   String _buildPrompt({
     required String language,
     required String dominantHand,
+    required String photoId,
   }) {
     return '''
 You are giving a premium private palm reading. Study the palm image carefully and write a reading that feels personal, magnetic, and memorable — the kind of reading someone screenshots and sends to a friend saying "this is scary accurate."
 
 Language: write the reading body entirely in $language.
 User's usual dominant/writing hand (context only, not to be used to determine which hand appears in the photo): $dominantHand.
+Photo id for this request (unique to this image): $photoId.
+This reading must be unique to photo id $photoId. Do not reuse openings, metaphors, or section wording from any other reading.
 
 IMAGE CHECK (mandatory, first step):
 - If the image does not clearly show a human palm/hand, do not fabricate a reading. Output only:
@@ -273,6 +295,7 @@ HAND IDENTIFICATION (mandatory, when a hand is visible):
 - Never infer left/right from the form field. Name the hand only from the image.
 
 HOW TO MAKE THIS FEEL REAL (mandatory technique):
+- Look at THIS photo before writing. OPENING must name one concrete visible detail unique to this image (a specific line curve/break/branch, mount fullness, finger proportion, crease pattern, or texture).
 - Anchor every claim to something visible: a specific line, its depth, length, branch, break, curve, or a mount's fullness, a finger's length relative to another, the hand's texture or temperature-look. Never make a claim you can't tie to a visible feature.
 - Vary sentence length on purpose. Let some lines be short and land hard. Don't write four same-length sentences in a row.
 - Use one concrete, unexpected image per section instead of abstract mood words. Not "you are creative" — instead, point to what that creativity actually looks like in their life (an unfinished project, a room rearranged at midnight, a habit of starting three things at once).
@@ -280,11 +303,12 @@ HOW TO MAKE THIS FEEL REAL (mandatory technique):
 - Write like you're noticing something in real time ("there—see how the line curves back toward the thumb"), not reciting a memorized meaning.
 
 BANNED PATTERNS (these are the tells of a fake/generic reading — never use them):
-- Generic openers: "Your hand tells a story," "The universe has written," "I see great things ahead"
+- Generic openers: "Your hand tells a story," "The universe has written," "I see great things ahead," "Your palm carries a quiet radiance"
 - Stock phrases: "old soul," "everything happens for a reason," "trust the journey," "your path is unique," "special gift," "destined for greatness"
 - Vague hedge-everything statements that could apply to anyone
 - Listing traits without tying them to a visible feature
 - Ending every section on the same upbeat note — let CHALLENGES actually feel like a challenge before GUIDANCE resolves it
+- Copy-paste sameness: if this reading could fit a different palm photo equally well, rewrite until it couldn't
 
 READING QUALITY:
 - Sound like a wise live reader speaking softly to one person, noticing details as they go.
@@ -297,7 +321,7 @@ READING QUALITY:
 
 OUTPUT FORMAT (exact labels, in this order, each label on its own line, one blank line between sections):
 HAND: Left or Right
-OPENING: One magnetic sentence that hooks the heart — should feel like the reader just noticed something true about them.
+OPENING: One magnetic sentence that hooks the heart — must include one concrete visible detail from THIS photo.
 PERSONALITY: 2-4 sentences, anchored to a specific visible feature.
 LIFE_PATH: 2-4 sentences, anchored to a specific visible feature.
 LOVE: 2-4 sentences, anchored to a specific visible feature.
@@ -354,6 +378,20 @@ Rules:
     required int seed,
     required _DemoImageStats stats,
   }) {
+    final openings = <String>[
+      'Look—the life line here runs deep and close to the thumb, like someone who protects their energy before they spend it.',
+      'That head line forks just past the center; your mind keeps two plans open even when your mouth says one.',
+      'The heart line sits high and clear—you feel first, explain later, and hate being rushed into either.',
+      'Your fate line is quieter than the others; progress for you is built in private, not announced.',
+      'See the fullness under the base of the thumb—warmth is your default, and solitude is how you recharge it.',
+    ];
+    final blessings = <String>[
+      'May the next quiet decision you make finally match the strength already written in that life line.',
+      'May the unfinished thing on your desk become the one you finish without apology.',
+      'May someone finally meet your pace instead of asking you to hurry your heart.',
+      'May tonight\'s small honest choice compound into the chapter you keep imagining.',
+      'May your hands stop carrying what was never yours to hold alone.',
+    ];
     final traits = <String>[
       'quietly observant and emotionally steady',
       'warm-hearted with a sharp practical mind',
@@ -406,17 +444,19 @@ Rules:
     final m = money[(seed ~/ 5) % money.length];
     final c = challenge[(seed ~/ 7) % challenge.length];
     final g = guidance[(seed ~/ 11) % guidance.length];
+    final o = openings[(seed ~/ 13) % openings.length];
+    final b = blessings[(seed ~/ 17) % blessings.length];
 
     return '''
 HAND: $hand
-OPENING: Your palm carries a quiet radiance—the kind that reveals itself only to those who look with patience.
+OPENING: $o
 PERSONALITY: You come across as someone $t. $contrastNote
 LIFE_PATH: $lightNote Your path favors depth over noise, and progress that lasts longer than applause.
 LOVE: $l Bonds deepen when you feel emotionally safe and respected for your pace.
 PROSPERITY: $m Craftsmanship and steady focus unlock more for you than scattered ambition.
 CHALLENGES: $c The friction softens when you trust the clarity you already hold.
 GUIDANCE: $g Let one sincere choice this week become proof that you are ready.
-BLESSING: May your hands remember their wisdom every time you choose yourself with gentleness.
+BLESSING: $b
 '''
         .trim();
   }
@@ -426,6 +466,20 @@ BLESSING: May your hands remember their wisdom every time you choose yourself wi
     required int seed,
     required _DemoImageStats stats,
   }) {
+    final openings = <String>[
+      'देखिए—जीवन रेखा यहाँ गहरी और अँगूठे के पास चलती है; आप ऊर्जा खर्च करने से पहले उसे बचाते हैं।',
+      'मस्तिष्क रेखा बीच के बाद दो भागों में बँटती दिखती है; आपके मन में अक्सर दो योजनाएँ साथ चलती हैं।',
+      'हृदय रेखा ऊँची और साफ़ है—आप पहले महसूस करते हैं, बाद में समझाते हैं।',
+      'भाग्य रेखा बाकी रेखाओं से शांत है; आपकी प्रगति निजी मेहनत से बनती है, शोर से नहीं।',
+      'अँगूठे के नीचे का भाग भरा हुआ है—आपका स्वभाव गर्म है, और अकेला समय आपको वापस भरता है।',
+    ];
+    final blessings = <String>[
+      'अगला शांत निर्णय उसी शक्ति से मेल खाए जो आपकी जीवन रेखा में पहले से है।',
+      'मेज़ पर अधूरा काम आज बिना माफ़ी के पूरा हो।',
+      'कोई आपकी गति का सम्मान करे, जल्दबाज़ी न माँगे।',
+      'आज की एक छोटी ईमानदार पसंद वह अध्याय बने जिसकी आप कल्पना करते हैं।',
+      'आपके हाथ वह बोझ छोड़ दें जो कभी आपका नहीं था।',
+    ];
     final traits = <String>[
       'शांत, समझदार और भावुक रूप से संतुलित',
       'नर्म दिल वाले, पर व्यावहारिक सोच रखने वाले',
@@ -468,20 +522,22 @@ BLESSING: May your hands remember their wisdom every time you choose yourself wi
     final m = money[(seed ~/ 5) % money.length];
     final c = challenge[(seed ~/ 7) % challenge.length];
     final g = guidance[(seed ~/ 11) % guidance.length];
+    final o = openings[(seed ~/ 13) % openings.length];
+    final b = blessings[(seed ~/ 17) % blessings.length];
     final light = stats.brightness < 0.35
         ? 'हल्की रोशनी में भी रेखाएँ गहराई वाली सोच का संकेत देती हैं।'
         : 'हथेली पर प्रकाश का संतुलन जीवन में संतुलन की खोज दर्शाता है।';
 
     return '''
 HAND: $hand
-OPENING: आपकी हथेली में एक शांत चमक है—जो धैर्य से देखने वाले को ही अपना सच दिखाती है।
+OPENING: $o
 PERSONALITY: आप $t व्यक्ति हैं। आपकी प्रकृति में स्थिर बुद्धिमत्ता और कोमल शक्ति दोनों बसते हैं।
 LIFE_PATH: $light आपका मार्ग शोर से अधिक गहराई और टिकाऊ प्रगति की ओर है।
 LOVE: $l प्रेम आपके लिए प्रदर्शन नहीं, सुरक्षित और सम्मानित साथ है।
 PROSPERITY: $m आपके लिए सफलता बिखरे प्रयासों से नहीं, पूरे किए गए कामों से खिलती है।
 CHALLENGES: $c यह चुनौती तब हल होती है जब आप अपनी पहले से मौजूद स्पष्टता पर विश्वास करते हैं।
 GUIDANCE: $g इस सप्ताह एक सच्चा चुनाव आपकी तैयारी का प्रमाण बने।
-BLESSING: आपकी हथेलियाँ आपको हर बार याद दिलाएँ कि कोमलता भी एक शक्ति है।
+BLESSING: $b
 '''
         .trim();
   }
@@ -558,14 +614,27 @@ BLESSING: आपकी हथेलियाँ आपको हर बार �
     required double contrast,
     required double sharpness,
     required int byteLength,
+    required String photoId,
   }) {
     final raw =
-        '${language.toLowerCase()}|$dominantHand|${(brightness * 100).round()}|${(contrast * 1000).round()}|${sharpness.round()}|$byteLength';
+        '${language.toLowerCase()}|$dominantHand|${(brightness * 100).round()}|${(contrast * 1000).round()}|${sharpness.round()}|$byteLength|$photoId';
     var hash = 0;
     for (final code in raw.codeUnits) {
       hash = (hash * 31 + code) & 0x7fffffff;
     }
     return hash;
+  }
+
+  /// Content fingerprint so different palms get different demo/AI prompts.
+  String _imageFingerprint(Uint8List bytes) {
+    var hash = 2166136261;
+    final step = bytes.length < 2048 ? 1 : bytes.length ~/ 2048;
+    for (var i = 0; i < bytes.length; i += step) {
+      hash ^= bytes[i];
+      hash = (hash * 16777619) & 0xffffffff;
+    }
+    hash ^= bytes.length;
+    return hash.toRadixString(16).padLeft(8, '0');
   }
 
   String _friendlyErrorForStatus(int statusCode, String rawError) {
