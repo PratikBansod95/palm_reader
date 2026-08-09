@@ -5,10 +5,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../core/constants/animation_timings.dart';
 import '../../core/theme/colors.dart';
 import '../../models/reading_context_model.dart';
-import '../../services/openai_palm_service.dart';
+import '../../services/palm_analysis_service.dart';
 import '../../widgets/animated_background.dart';
 
 class ScanningScreen extends ConsumerStatefulWidget {
@@ -38,77 +37,100 @@ class _ScanningScreenState extends ConsumerState<ScanningScreen>
     duration: const Duration(milliseconds: 2200),
   )..repeat();
 
-  Timer? _timer;
+  Timer? _stepTimer;
   int _index = 0;
   bool _navigating = false;
+  bool _analyzing = false;
+  String? _error;
 
   @override
   void initState() {
     super.initState();
-    _timer = Timer.periodic(AnimationTimings.scanStep, (timer) async {
-      if (!mounted) {
+    _stepTimer = Timer.periodic(const Duration(milliseconds: 1100), (timer) {
+      if (!mounted || _index >= _steps.length - 1) {
         return;
       }
-
-      if (_index < _steps.length - 1) {
-        setState(() => _index++);
-      }
-
-      if (timer.tick >= AnimationTimings.scanTotal.inSeconds && !_navigating) {
-        _navigating = true;
-        timer.cancel();
-        await _runAnalysis();
-      }
+      setState(() => _index++);
     });
+    unawaited(_runAnalysis());
   }
 
   Future<void> _runAnalysis() async {
+    if (_analyzing || _navigating) {
+      return;
+    }
+    setState(() {
+      _analyzing = true;
+      _error = null;
+    });
+
+    final startedAt = DateTime.now();
     try {
       HapticFeedback.heavyImpact();
-      final result = await ref.read(openAiPalmServiceProvider).fetchPalmReading(
-            imageBytes: widget.request.imageBytes,
-            language: widget.request.language,
-            dominantHand: widget.request.dominantHand,
-          );
-      if (!mounted) {
-        return;
-      }
-      context.go('/results', extra: result);
-    } catch (error) {
-      _navigating = false;
-      if (!mounted) {
-        return;
+      final result =
+          await ref.read(palmAnalysisServiceProvider).fetchPalmReading(
+                imageBytes: widget.request.imageBytes,
+                language: widget.request.language,
+                dominantHand: widget.request.dominantHand,
+              );
+
+      final elapsed = DateTime.now().difference(startedAt);
+      const minDwell = Duration(milliseconds: 1500);
+      if (elapsed < minDwell) {
+        await Future<void>.delayed(minDwell - elapsed);
       }
 
-      await showDialog<void>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Analysis Failed'),
-          content: Text(
-            'Could not analyze your palm right now.\n${_toUiError(error)}',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Retry'),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                context.go(
-                  '/capture',
-                  extra: OnboardingSelection(
-                    language: widget.request.language,
-                    dominantHand: widget.request.dominantHand,
-                  ),
-                );
-              },
-              child: const Text('Recapture'),
-            ),
-          ],
-        ),
-      );
+      if (!mounted) {
+        return;
+      }
+      _navigating = true;
+      _stepTimer?.cancel();
+      context.go('/results', extra: result);
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _analyzing = false;
+        _error = _toUiError(error);
+      });
+      await _showErrorDialog();
     }
+  }
+
+  Future<void> _showErrorDialog() async {
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('Analysis Failed'),
+        content: Text(
+          'Could not analyze your palm right now.\n${_error ?? 'Unknown error'}',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              unawaited(_runAnalysis());
+            },
+            child: const Text('Retry'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              context.go(
+                '/capture',
+                extra: OnboardingSelection(
+                  language: widget.request.language,
+                  dominantHand: widget.request.dominantHand,
+                ),
+              );
+            },
+            child: const Text('Recapture'),
+          ),
+        ],
+      ),
+    );
   }
 
   String _toUiError(Object error) {
@@ -122,7 +144,7 @@ class _ScanningScreenState extends ConsumerState<ScanningScreen>
 
   @override
   void dispose() {
-    _timer?.cancel();
+    _stepTimer?.cancel();
     _beamController.dispose();
     super.dispose();
   }
@@ -140,6 +162,13 @@ class _ScanningScreenState extends ConsumerState<ScanningScreen>
               children: [
                 const SizedBox(height: 24),
                 Text('Destiny Scan', style: textTheme.headlineMedium),
+                const SizedBox(height: 8),
+                Text(
+                  ref.read(palmAnalysisServiceProvider).isDemoMode
+                      ? 'Preparing your personalized reading'
+                      : 'Connecting to the analysis guide',
+                  style: textTheme.bodyMedium,
+                ),
                 const SizedBox(height: 24),
                 Expanded(
                   child: DecoratedBox(
@@ -193,19 +222,23 @@ class _ScanningScreenState extends ConsumerState<ScanningScreen>
                                 alignment: Alignment(0, (y * 2) - 1),
                                 child: Container(
                                   height: 7,
-                                  margin: const EdgeInsets.symmetric(horizontal: 22),
+                                  margin: const EdgeInsets.symmetric(
+                                    horizontal: 22,
+                                  ),
                                   decoration: BoxDecoration(
                                     borderRadius: BorderRadius.circular(12),
                                     gradient: LinearGradient(
                                       colors: [
                                         Colors.transparent,
-                                        AppColors.softGold.withValues(alpha: 0.95),
+                                        AppColors.softGold
+                                            .withValues(alpha: 0.95),
                                         Colors.transparent,
                                       ],
                                     ),
                                     boxShadow: [
                                       BoxShadow(
-                                        color: AppColors.gold.withValues(alpha: 0.45),
+                                        color: AppColors.gold
+                                            .withValues(alpha: 0.45),
                                         blurRadius: 16,
                                       ),
                                     ],

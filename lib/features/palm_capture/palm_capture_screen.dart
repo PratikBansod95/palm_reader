@@ -35,6 +35,7 @@ class PalmCaptureScreen extends ConsumerStatefulWidget {
 class _PalmCaptureScreenState extends ConsumerState<PalmCaptureScreen>
     with SingleTickerProviderStateMixin {
   bool _loading = false;
+  Uint8List? _previewBytes;
   final ImagePicker _picker = ImagePicker();
 
   late final AnimationController _pulseController = AnimationController(
@@ -48,7 +49,7 @@ class _PalmCaptureScreenState extends ConsumerState<PalmCaptureScreen>
     super.dispose();
   }
 
-  Future<void> _capture() async {
+  Future<void> _captureFromCamera() async {
     HapticFeedback.mediumImpact();
 
     final permission = await Permission.camera.request();
@@ -75,12 +76,33 @@ class _PalmCaptureScreenState extends ConsumerState<PalmCaptureScreen>
       return;
     }
 
-    final Uint8List capturedBytes = await image.readAsBytes();
+    await _processPickedBytes(await image.readAsBytes());
+  }
 
-    setState(() => _loading = true);
-    final validation = await ref
-        .read(imageValidatorProvider)
-        .validatePalmImage(capturedBytes);
+  Future<void> _pickFromGallery() async {
+    HapticFeedback.selectionClick();
+    final image = await _picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 92,
+      maxWidth: 1800,
+      maxHeight: 1800,
+    );
+
+    if (!mounted || image == null) {
+      return;
+    }
+
+    await _processPickedBytes(await image.readAsBytes());
+  }
+
+  Future<void> _processPickedBytes(Uint8List capturedBytes) async {
+    setState(() {
+      _previewBytes = capturedBytes;
+      _loading = true;
+    });
+
+    final validation =
+        await ref.read(imageValidatorProvider).validatePalmImage(capturedBytes);
     debugPrint(
       'PalmValidation valid=${validation.isValid} '
       'size=${validation.width}x${validation.height} '
@@ -110,9 +132,7 @@ class _PalmCaptureScreenState extends ConsumerState<PalmCaptureScreen>
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Capture Not Clear'),
-        content: Text(
-          validation.message,
-        ),
+        content: Text(validation.message),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
@@ -166,17 +186,20 @@ class _PalmCaptureScreenState extends ConsumerState<PalmCaptureScreen>
               child: Stack(
                 children: [
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 18,
+                    ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Click a clear picture of your dominant hand',
+                          'Capture your dominant palm',
                           style: textTheme.headlineMedium,
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          'Keep your palm fully visible and well-lit before capture.',
+                          'Use the camera or choose a clear photo from your gallery.',
                           style: textTheme.bodyMedium,
                         ),
                         const SizedBox(height: 22),
@@ -188,123 +211,68 @@ class _PalmCaptureScreenState extends ConsumerState<PalmCaptureScreen>
                               border: Border.all(color: AppColors.cardStroke),
                               boxShadow: [
                                 BoxShadow(
-                                  color: AppColors.gold.withOpacity(0.08),
+                                  color: AppColors.gold.withValues(alpha: 0.08),
                                   blurRadius: 24,
                                 ),
                               ],
                             ),
-                            child: Stack(
-                              children: [
-                                Positioned.fill(
-                                  child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(24),
-                                    child: Stack(
-                                      fit: StackFit.expand,
-                                      children: [
-                                        ShaderMask(
-                                          blendMode: BlendMode.dstIn,
-                                          shaderCallback: (bounds) {
-                                            return RadialGradient(
-                                              center: const Alignment(0, 0.08),
-                                              radius: 1.05,
-                                              colors: const [
-                                                Colors.white,
-                                                Colors.white,
-                                                Colors.transparent,
-                                              ],
-                                              stops: const [0.0, 0.56, 1.0],
-                                            ).createShader(bounds);
-                                          },
-                                          child: ColorFiltered(
-                                            colorFilter:
-                                                const ColorFilter.matrix(_kDesaturateMatrix),
-                                            child: ColorFiltered(
-                                              colorFilter: ColorFilter.mode(
-                                                AppColors.softGold.withValues(alpha: 0.30),
-                                                BlendMode.modulate,
-                                              ),
-                                              child: ImageFiltered(
-                                                imageFilter: ImageFilter.blur(
-                                                  sigmaX: 2.8,
-                                                  sigmaY: 2.8,
-                                                ),
-                                                child: Opacity(
-                                                  opacity: 0.2,
-                                                  child: Transform.scale(
-                                                    scale: 1.12,
-                                                    child: Image.asset(
-                                                      'assets/images/hand_overlay.png',
-                                                      fit: BoxFit.cover,
-                                                      alignment: const Alignment(0.02, 0.18),
-                                                      errorBuilder: (context, error, stackTrace) =>
-                                                          const SizedBox.shrink(),
-                                                    ),
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                        DecoratedBox(
-                                          decoration: BoxDecoration(
-                                            gradient: LinearGradient(
-                                              begin: Alignment.topCenter,
-                                              end: Alignment.bottomCenter,
-                                              colors: [
-                                                AppColors.midnight.withValues(alpha: 0.3),
-                                                AppColors.deepIndigo.withValues(alpha: 0.12),
-                                                AppColors.midnight.withValues(alpha: 0.36),
-                                              ],
-                                            ),
-                                          ),
-                                        ),
-                                      ],
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(24),
+                              child: Stack(
+                                fit: StackFit.expand,
+                                children: [
+                                  if (_previewBytes != null)
+                                    Image.memory(
+                                      _previewBytes!,
+                                      fit: BoxFit.cover,
+                                    )
+                                  else
+                                    _HandGuide(),
+                                  DecoratedBox(
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(
+                                        begin: Alignment.topCenter,
+                                        end: Alignment.bottomCenter,
+                                        colors: [
+                                          AppColors.midnight
+                                              .withValues(alpha: 0.2),
+                                          AppColors.deepIndigo
+                                              .withValues(alpha: 0.08),
+                                          AppColors.midnight
+                                              .withValues(alpha: 0.28),
+                                        ],
+                                      ),
                                     ),
                                   ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-                        Center(
-                          child: GestureDetector(
-                            onTap: _loading ? null : _capture,
-                            child: AnimatedBuilder(
-                              animation: _pulseController,
-                              builder: (context, child) {
-                                final pulse = 6 + (_pulseController.value * 14);
-                                return Container(
-                                  width: 94,
-                                  height: 94,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: AppColors.gold.withOpacity(0.24),
-                                        blurRadius: pulse,
-                                        spreadRadius: 2,
-                                      ),
-                                    ],
-                                  ),
-                                  child: child,
-                                );
-                              },
-                              child: DecoratedBox(
-                                decoration: const BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: AppColors.gold,
-                                ),
-                                child: const Icon(
-                                  Icons.camera_alt_rounded,
-                                  color: AppColors.midnight,
-                                  size: 34,
-                                ),
+                                ],
                               ),
                             ),
                           ),
                         ),
-                        const SizedBox(height: 24),
+                        const SizedBox(height: 20),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _ActionChipButton(
+                                label: 'Camera',
+                                icon: Icons.camera_alt_rounded,
+                                emphasized: true,
+                                pulse: _pulseController,
+                                onTap: _loading ? null : _captureFromCamera,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: _ActionChipButton(
+                                label: 'Gallery',
+                                icon: Icons.photo_library_outlined,
+                                emphasized: false,
+                                onTap: _loading ? null : _pickFromGallery,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
                       ],
                     ),
                   ),
@@ -319,6 +287,145 @@ class _PalmCaptureScreenState extends ConsumerState<PalmCaptureScreen>
           ],
         ),
       ),
+    );
+  }
+}
+
+class _HandGuide extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        ShaderMask(
+          blendMode: BlendMode.dstIn,
+          shaderCallback: (bounds) {
+            return RadialGradient(
+              center: const Alignment(0, 0.08),
+              radius: 1.05,
+              colors: const [
+                Colors.white,
+                Colors.white,
+                Colors.transparent,
+              ],
+              stops: const [0.0, 0.56, 1.0],
+            ).createShader(bounds);
+          },
+          child: ColorFiltered(
+            colorFilter: const ColorFilter.matrix(_kDesaturateMatrix),
+            child: ColorFiltered(
+              colorFilter: ColorFilter.mode(
+                AppColors.softGold.withValues(alpha: 0.30),
+                BlendMode.modulate,
+              ),
+              child: ImageFiltered(
+                imageFilter: ImageFilter.blur(sigmaX: 2.8, sigmaY: 2.8),
+                child: Opacity(
+                  opacity: 0.35,
+                  child: Transform.scale(
+                    scale: 1.08,
+                    child: Image.asset(
+                      'assets/images/hand_overlay.png',
+                      fit: BoxFit.cover,
+                      alignment: const Alignment(0.02, 0.18),
+                      errorBuilder: (context, error, stackTrace) =>
+                          const SizedBox.shrink(),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+        Center(
+          child: Icon(
+            Icons.pan_tool_alt_rounded,
+            color: AppColors.softGold.withValues(alpha: 0.28),
+            size: 120,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ActionChipButton extends StatelessWidget {
+  const _ActionChipButton({
+    required this.label,
+    required this.icon,
+    required this.emphasized,
+    required this.onTap,
+    this.pulse,
+  });
+
+  final String label;
+  final IconData icon;
+  final bool emphasized;
+  final VoidCallback? onTap;
+  final AnimationController? pulse;
+
+  @override
+  Widget build(BuildContext context) {
+    final button = InkWell(
+      borderRadius: BorderRadius.circular(18),
+      onTap: onTap,
+      child: Ink(
+        height: 56,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(18),
+          color: emphasized
+              ? AppColors.gold
+              : AppColors.midnight.withValues(alpha: 0.35),
+          border: Border.all(
+            color: emphasized
+                ? AppColors.softGold
+                : AppColors.softGold.withValues(alpha: 0.55),
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              color: emphasized ? AppColors.midnight : AppColors.softGold,
+              size: 22,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                    color:
+                        emphasized ? AppColors.midnight : AppColors.textPrimary,
+                  ),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (pulse == null || !emphasized) {
+      return button;
+    }
+
+    return AnimatedBuilder(
+      animation: pulse!,
+      builder: (context, child) {
+        final glow = 6 + (pulse!.value * 12);
+        return Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.gold.withValues(alpha: 0.28),
+                blurRadius: glow,
+                spreadRadius: 1,
+              ),
+            ],
+          ),
+          child: child,
+        );
+      },
+      child: button,
     );
   }
 }
@@ -401,12 +508,6 @@ class _SkyPainter extends CustomPainter {
       Offset(size.width * 0.71, size.height * 0.74),
       Offset(size.width * 0.85, size.height * 0.79),
       Offset(size.width * 0.9, size.height * 0.86),
-      Offset(size.width * 0.43, size.height * 0.19),
-      Offset(size.width * 0.5, size.height * 0.14),
-      Offset(size.width * 0.58, size.height * 0.2),
-      Offset(size.width * 0.45, size.height * 0.82),
-      Offset(size.width * 0.53, size.height * 0.87),
-      Offset(size.width * 0.61, size.height * 0.81),
     ];
 
     final links = <List<int>>[
@@ -418,23 +519,10 @@ class _SkyPainter extends CustomPainter {
       [7, 8],
       [9, 10],
       [10, 11],
-      [12, 13],
-      [13, 14],
-      [15, 16],
-      [16, 17],
-      [2, 12],
-      [8, 15],
     ];
 
     for (final link in links) {
       canvas.drawLine(nodes[link[0]], nodes[link[1]], linePaint);
-    }
-
-    final nodePaint = Paint()
-      ..style = PaintingStyle.fill
-      ..color = AppColors.softGold.withValues(alpha: 0.52);
-    for (final n in nodes) {
-      canvas.drawCircle(n, 1.6, nodePaint);
     }
   }
 
@@ -454,4 +542,3 @@ class _SkyPainter extends CustomPainter {
     return oldDelegate.progress != progress;
   }
 }
-

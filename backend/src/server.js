@@ -9,8 +9,10 @@ import OpenAI from 'openai';
 const app = express();
 
 const port = Number(process.env.PORT || 8080);
-const model = process.env.OPENAI_MODEL || 'gpt-4.1-nano';
-const apiKey = process.env.OPENAI_API_KEY;
+const openAiModel = process.env.OPENAI_MODEL || 'gpt-4.1-nano';
+const geminiModel = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
+const openAiApiKey = (process.env.OPENAI_API_KEY || '').trim();
+const geminiApiKey = (process.env.GEMINI_API_KEY || '').trim();
 const appApiKey = (process.env.APP_API_KEY || '').trim();
 const openAiTimeoutMs = Number(process.env.OPENAI_TIMEOUT_MS || 45000);
 const allowedOrigins = String(process.env.CORS_ORIGIN || '')
@@ -19,11 +21,14 @@ const allowedOrigins = String(process.env.CORS_ORIGIN || '')
   .filter(Boolean);
 const trustProxy = process.env.TRUST_PROXY ?? (process.env.RENDER ? '1' : 'false');
 
-if (!apiKey) {
-  throw new Error('OPENAI_API_KEY is required');
+const configuredProvider = resolveProvider();
+if (!configuredProvider) {
+  throw new Error(
+    'Set GEMINI_API_KEY (preferred) or OPENAI_API_KEY. Optionally set AI_PROVIDER=gemini|openai.',
+  );
 }
 
-const openai = new OpenAI({ apiKey });
+const openai = openAiApiKey ? new OpenAI({ apiKey: openAiApiKey }) : null;
 
 if (trustProxy === 'true') {
   app.set('trust proxy', true);
@@ -50,6 +55,22 @@ app.use(
         return callback(null, true);
       }
       if (allowedOrigins.length === 0) {
+        // Local/dev friendly defaults when CORS_ORIGIN is unset.
+        const localDefaults = [
+          'http://localhost',
+          'http://127.0.0.1',
+          'http://localhost:3000',
+          'http://localhost:5000',
+          'http://localhost:8080',
+          'http://localhost:5173',
+        ];
+        if (
+          localDefaults.some((prefix) => origin.startsWith(prefix)) ||
+          origin.startsWith('http://localhost:') ||
+          origin.startsWith('http://127.0.0.1:')
+        ) {
+          return callback(null, true);
+        }
         return callback(new Error('CORS blocked: CORS_ORIGIN is not configured'));
       }
       if (allowedOrigins.includes('*') || allowedOrigins.includes(origin)) {
@@ -80,7 +101,6 @@ const palmReadingLimiter = rateLimit({
   max: palmRateLimitPerMin,
   standardHeaders: true,
   legacyHeaders: false,
-  // Keep limits per-device even when many users share one public IP.
   keyGenerator: (req) => getPalmClientKey(req),
   handler: (req, res) => {
     if (logPalmRequests) {
@@ -93,14 +113,19 @@ const palmReadingLimiter = rateLimit({
 });
 
 app.get('/api/health', (_req, res) => {
-  res.json({ ok: true });
+  res.json({
+    ok: true,
+    provider: configuredProvider,
+    geminiConfigured: Boolean(geminiApiKey),
+    openaiConfigured: Boolean(openAiApiKey),
+  });
 });
 
 app.post('/api/palm-reading', palmReadingLimiter, upload.single('image'), async (req, res) => {
   try {
     if (logPalmRequests) {
       console.info(
-        `[PalmRequest] start ip="${req.ip}" ua="${req.get('user-agent') || 'unknown'}" lang="${req.body?.language || 'English'}" hand="${req.body?.dominantHand || 'Right'}"`,
+        `[PalmRequest] start provider="${configuredProvider}" ip="${req.ip}" ua="${req.get('user-agent') || 'unknown'}" lang="${req.body?.language || 'English'}" hand="${req.body?.dominantHand || 'Right'}"`,
       );
     }
 
@@ -126,37 +151,22 @@ app.post('/api/palm-reading', palmReadingLimiter, upload.single('image'), async 
 
     const prompt = buildPrompt({ language, dominantHand });
     const base64Image = image.buffer.toString('base64');
-    const dataUrl = `data:${detectedMimeType};base64,${base64Image}`;
 
-    const response = await withTimeout(
-      openai.responses.create({
-        model,
-        max_output_tokens: 900,
-        input: [
-          {
-            role: 'system',
-            content: [
-              {
-                type: 'input_text',
-                text:
-                  'You are an expert palmist and spiritual guide. Keep output warm, practical, and emotionally intelligent.',
-              },
-            ],
-          },
-          {
-            role: 'user',
-            content: [
-              { type: 'input_text', text: prompt },
-              { type: 'input_image', image_url: dataUrl },
-            ],
-          },
-        ],
-      }),
+    const reading = await withTimeout(
+      configuredProvider === 'gemini'
+        ? generateWithGemini({
+            prompt,
+            base64Image,
+            mimeType: detectedMimeType,
+          })
+        : generateWithOpenAI({
+            prompt,
+            base64Image,
+            mimeType: detectedMimeType,
+          }),
       openAiTimeoutMs,
       'OpenAI request timed out',
     );
-
-    const reading = extractOutputText(response).trim();
 
     if (!reading) {
       return res.status(502).json({ error: 'empty model output' });
@@ -168,8 +178,8 @@ app.post('/api/palm-reading', palmReadingLimiter, upload.single('image'), async 
 
     return res.json({ reading });
   } catch (error) {
-    if (error?.status === 429) {
-      console.error('[PalmRequest] OpenAI upstream rate limited or quota exceeded');
+    if (error?.status === 429 || error?.code === 429) {
+      console.error('[PalmRequest] upstream rate limited or quota exceeded');
       return res.status(503).json({ error: 'upstream_rate_limit' });
     }
 
@@ -177,6 +187,7 @@ app.post('/api/palm-reading', palmReadingLimiter, upload.single('image'), async 
       return res.status(504).json({ error: 'analysis timeout' });
     }
 
+    console.error('[PalmRequest] failed', error?.message || error);
     const statusCode = error?.status || 500;
     if (statusCode >= 500) {
       return res.status(statusCode).json({ error: 'analysis failed' });
@@ -185,6 +196,109 @@ app.post('/api/palm-reading', palmReadingLimiter, upload.single('image'), async 
     return res.status(statusCode).json({ error: 'request failed' });
   }
 });
+
+function resolveProvider() {
+  const requested = String(process.env.AI_PROVIDER || '').trim().toLowerCase();
+  if (requested === 'gemini') {
+    return geminiApiKey ? 'gemini' : null;
+  }
+  if (requested === 'openai') {
+    return openAiApiKey ? 'openai' : null;
+  }
+  if (geminiApiKey) {
+    return 'gemini';
+  }
+  if (openAiApiKey) {
+    return 'openai';
+  }
+  return null;
+}
+
+async function generateWithGemini({ prompt, base64Image, mimeType }) {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(geminiModel)}:generateContent?key=${encodeURIComponent(geminiApiKey)}`;
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      systemInstruction: {
+        parts: [
+          {
+            text: 'You are an expert palmist and spiritual guide. Keep output warm, practical, and emotionally intelligent.',
+          },
+        ],
+      },
+      contents: [
+        {
+          role: 'user',
+          parts: [
+            { text: prompt },
+            {
+              inlineData: {
+                mimeType,
+                data: base64Image,
+              },
+            },
+          ],
+        },
+      ],
+      generationConfig: {
+        maxOutputTokens: 900,
+        temperature: 0.85,
+      },
+    }),
+  });
+
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const err = new Error(payload?.error?.message || 'Gemini request failed');
+    err.status = response.status;
+    err.code = response.status;
+    throw err;
+  }
+
+  const parts = payload?.candidates?.[0]?.content?.parts;
+  if (!Array.isArray(parts)) {
+    return '';
+  }
+  return parts
+    .map((part) => (typeof part?.text === 'string' ? part.text : ''))
+    .join('\n')
+    .trim();
+}
+
+async function generateWithOpenAI({ prompt, base64Image, mimeType }) {
+  if (!openai) {
+    const err = new Error('OpenAI is not configured');
+    err.status = 500;
+    throw err;
+  }
+
+  const dataUrl = `data:${mimeType};base64,${base64Image}`;
+  const response = await openai.responses.create({
+    model: openAiModel,
+    max_output_tokens: 900,
+    input: [
+      {
+        role: 'system',
+        content: [
+          {
+            type: 'input_text',
+            text: 'You are an expert palmist and spiritual guide. Keep output warm, practical, and emotionally intelligent.',
+          },
+        ],
+      },
+      {
+        role: 'user',
+        content: [
+          { type: 'input_text', text: prompt },
+          { type: 'input_image', image_url: dataUrl },
+        ],
+      },
+    ],
+  });
+
+  return extractOutputText(response).trim();
+}
 
 function withTimeout(promise, timeoutMs, message) {
   return Promise.race([
@@ -290,5 +404,5 @@ You must follow these strict rules:
 }
 
 app.listen(port, () => {
-  console.log(`Palm backend listening on port ${port}`);
+  console.log(`Palm backend listening on port ${port} (provider=${configuredProvider})`);
 });

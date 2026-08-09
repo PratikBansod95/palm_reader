@@ -35,7 +35,7 @@ class SubscriptionScreen extends StatelessWidget {
                 _planCard(
                   context,
                   title: 'Premium Tier',
-                  subtitle: 'Most Chosen',
+                  subtitle: 'Coming Soon',
                   features: const [
                     'Dual-hand comparison',
                     'Detailed year forecast',
@@ -51,13 +51,25 @@ class SubscriptionScreen extends StatelessWidget {
                   subtitle: 'Current Access',
                   features: const [
                     'Single hand interpretation',
-                    'Core category summary',
-                    'Limited follow-up prompts',
+                    'Narrative destiny reading',
+                    'Language & hand preferences',
                   ],
                   highlighted: false,
                 ),
                 const Spacer(),
-                PrimaryButton(label: 'Unlock Premium', breathing: true, onPressed: () {}),
+                PrimaryButton(
+                  label: 'Coming Soon',
+                  breathing: true,
+                  onPressed: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'Premium unlocks are coming soon. Your basic reading remains free.',
+                        ),
+                      ),
+                    );
+                  },
+                ),
               ],
             ),
           ),
@@ -78,16 +90,18 @@ class SubscriptionScreen extends StatelessWidget {
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
-        color: highlighted ? AppColors.cardBase.withOpacity(0.85) : AppColors.cardBase,
+        color: highlighted
+            ? AppColors.cardBase.withValues(alpha: 0.85)
+            : AppColors.cardBase,
         border: Border.all(
           color: highlighted
-              ? AppColors.softGold.withOpacity(0.85)
+              ? AppColors.softGold.withValues(alpha: 0.85)
               : AppColors.cardStroke,
         ),
         boxShadow: highlighted
             ? [
                 BoxShadow(
-                  color: AppColors.gold.withOpacity(0.16),
+                  color: AppColors.gold.withValues(alpha: 0.16),
                   blurRadius: 22,
                 ),
               ]
@@ -113,7 +127,10 @@ class SubscriptionScreen extends StatelessWidget {
           ...features.map(
             (feature) => Padding(
               padding: const EdgeInsets.only(bottom: 6),
-              child: Text('• $feature', style: Theme.of(context).textTheme.bodyLarge),
+              child: Text(
+                '• $feature',
+                style: Theme.of(context).textTheme.bodyLarge,
+              ),
             ),
           ),
         ],
@@ -121,4 +138,3 @@ class SubscriptionScreen extends StatelessWidget {
     );
   }
 }
-

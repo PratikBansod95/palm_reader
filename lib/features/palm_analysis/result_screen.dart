@@ -9,7 +9,6 @@ import '../../core/constants/app_strings.dart';
 import '../../core/theme/colors.dart';
 import '../../models/palm_result_model.dart';
 import '../../widgets/animated_background.dart';
-import '../../widgets/breathing_glow.dart';
 import '../../widgets/primary_button.dart';
 import 'widgets/glowing_header.dart';
 import 'widgets/section_card.dart';
@@ -36,6 +35,14 @@ class _ResultScreenState extends State<ResultScreen> {
         MapEntry('Challenges', widget.result.challenges),
         MapEntry('Guidance', widget.result.guidance),
       ];
+
+  List<String> get _paragraphs {
+    return widget.result.fullReading
+        .split(RegExp(r'\n\s*\n'))
+        .map((p) => p.trim())
+        .where((p) => p.isNotEmpty)
+        .toList();
+  }
 
   @override
   void initState() {
@@ -74,26 +81,45 @@ class _ResultScreenState extends State<ResultScreen> {
               const GlowingHeader(title: 'Your Destiny Reading'),
               const SizedBox(height: 12),
               if (_hasNarrative)
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(18),
-                  decoration: BoxDecoration(
-                    color: AppColors.cardBase,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: AppColors.cardStroke),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColors.gold.withOpacity(0.08),
-                        blurRadius: 18,
-                        spreadRadius: 1,
+                ..._paragraphs.asMap().entries.map((entry) {
+                  return TweenAnimationBuilder<double>(
+                    tween: Tween(begin: 0, end: 1),
+                    duration: Duration(milliseconds: 420 + (entry.key * 120)),
+                    curve: Curves.easeOutCubic,
+                    builder: (context, value, child) {
+                      return Opacity(
+                        opacity: value,
+                        child: Transform.translate(
+                          offset: Offset(0, (1 - value) * 12),
+                          child: child,
+                        ),
+                      );
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(18),
+                        decoration: BoxDecoration(
+                          color: AppColors.cardBase,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: AppColors.cardStroke),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppColors.gold.withValues(alpha: 0.08),
+                              blurRadius: 18,
+                              spreadRadius: 1,
+                            ),
+                          ],
+                        ),
+                        child: Text(
+                          entry.value,
+                          style: Theme.of(context).textTheme.bodyLarge,
+                        ),
                       ),
-                    ],
-                  ),
-                  child: Text(
-                    widget.result.fullReading,
-                    style: Theme.of(context).textTheme.bodyLarge,
-                  ),
-                )
+                    ),
+                  );
+                })
               else
                 ...List.generate(_sections.length, (i) {
                   final visible = i < _visibleSections;
@@ -116,26 +142,20 @@ class _ResultScreenState extends State<ResultScreen> {
                     ),
                   );
                 }),
-              AnimatedOpacity(
-                opacity: _visibleSections >= _sections.length ? 1 : 0,
-                duration: const Duration(milliseconds: 550),
-                curve: Curves.easeOutCubic,
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 8),
-                  child: Column(
-                    children: [
-                      _FollowUps(items: widget.result.followUps),
-                      const SizedBox(height: 12),
-                      _PremiumCard(onTap: () => context.push('/subscription')),
-                    ],
-                  ),
-                ),
+              const SizedBox(height: 8),
+              _FollowUps(items: widget.result.followUps),
+              const SizedBox(height: 8),
+              _ComingSoonCard(onTap: () => context.push('/subscription')),
+              const SizedBox(height: 14),
+              PrimaryButton(
+                label: 'New Reading',
+                onPressed: () => context.go('/'),
               ),
               const SizedBox(height: 14),
               Text(
                 AppStrings.disclaimer,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: AppColors.textMuted.withOpacity(0.75),
+                      color: AppColors.textMuted.withValues(alpha: 0.75),
                       fontSize: 12,
                     ),
                 textAlign: TextAlign.center,
@@ -146,15 +166,6 @@ class _ResultScreenState extends State<ResultScreen> {
       ),
     );
   }
-}
-
-class _PremiumCard extends StatefulWidget {
-  const _PremiumCard({required this.onTap});
-
-  final VoidCallback onTap;
-
-  @override
-  State<_PremiumCard> createState() => _PremiumCardState();
 }
 
 class _FollowUps extends StatelessWidget {
@@ -175,7 +186,7 @@ class _FollowUps extends StatelessWidget {
               margin: const EdgeInsets.only(bottom: 10),
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               decoration: BoxDecoration(
-                color: AppColors.cardBase.withOpacity(0.7),
+                color: AppColors.cardBase.withValues(alpha: 0.7),
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(color: AppColors.cardStroke),
               ),
@@ -187,56 +198,47 @@ class _FollowUps extends StatelessWidget {
   }
 }
 
-class _PremiumCardState extends State<_PremiumCard>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 2200),
-  )..repeat(reverse: true);
+class _ComingSoonCard extends StatelessWidget {
+  const _ComingSoonCard({required this.onTap});
 
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, child) {
-        final opacity = 0.45 + (_controller.value * 0.3);
-        return Container(
-          padding: const EdgeInsets.all(18),
-          decoration: BoxDecoration(
-            color: AppColors.cardBase,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: AppColors.softGold.withOpacity(opacity),
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: AppColors.cardBase,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: AppColors.softGold.withValues(alpha: 0.55),
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Palm Destiny Premium',
+              style: Theme.of(context).textTheme.titleLarge,
             ),
-          ),
-          child: child,
-        );
-      },
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Unlock deeper destiny insights',
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
-          const SizedBox(height: 10),
-          Text(
-            'Get dual-hand synthesis, compatibility depth, and expanded karmic interpretation.',
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
-          const SizedBox(height: 14),
-          BreathingGlow(
-            child: PrimaryButton(label: 'Continue to Premium', onPressed: widget.onTap),
-          ),
-        ],
+            const SizedBox(height: 8),
+            Text(
+              'Dual-hand synthesis and deeper karmic insight — coming soon.',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'View details →',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppColors.softGold,
+                  ),
+            ),
+          ],
+        ),
       ),
     );
   }
 }
-

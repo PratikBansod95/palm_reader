@@ -31,13 +31,13 @@ class ImageValidationResult {
 }
 
 class ImageValidator {
-  static const int _minWidth = 720;
-  static const int _minHeight = 720;
-  static const double _minBrightness = 0.14;
-  static const double _maxBrightness = 0.93;
-  static const double _minContrast = 0.055;
-  static const double _hardMinSharpness = 4.8;
-  static const double _softMinSharpness = 5.5;
+  static const int _minWidth = 480;
+  static const int _minHeight = 480;
+  static const double _minBrightness = 0.10;
+  static const double _maxBrightness = 0.96;
+  static const double _minContrast = 0.040;
+  static const double _hardMinSharpness = 3.2;
+  static const double _softMinSharpness = 4.2;
 
   Future<ImageValidationResult> validatePalmImage(Uint8List imageBytes) async {
     await Future<void>.delayed(AnimationTimings.imageValidationDelay);

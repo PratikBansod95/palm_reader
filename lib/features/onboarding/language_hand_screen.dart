@@ -35,61 +35,75 @@ class _LanguageHandScreenState extends State<LanguageHandScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const SizedBox(height: 30),
-                    Center(
-                      child: Text(
-                        'Your Destiny',
-                        style: textTheme.displaySmall?.copyWith(fontSize: 62),
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    Center(
-                      child: Text(
-                        'Let\'s reveal what your hands are hiding.',
-                        style: textTheme.bodyLarge?.copyWith(
-                          color: AppColors.textPrimary.withValues(alpha: 0.9),
-                          fontSize: 19,
+                    Expanded(
+                      child: SingleChildScrollView(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const SizedBox(height: 18),
+                            Center(
+                              child: Text(
+                                'Palm Destiny',
+                                style: textTheme.displaySmall?.copyWith(
+                                  fontSize: 48,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            Center(
+                              child: Text(
+                                'Let\'s reveal what your hands are hiding.',
+                                style: textTheme.bodyLarge?.copyWith(
+                                  color: AppColors.textPrimary
+                                      .withValues(alpha: 0.9),
+                                  fontSize: 18,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                            const SizedBox(height: 22),
+                            const _StepLabel(text: 'Step 1 of 3'),
+                            const SizedBox(height: 24),
+                            const _SectionHeading(
+                              title: 'Language',
+                              icon: Icons.public,
+                            ),
+                            const SizedBox(height: 12),
+                            _SelectionRow(
+                              options: const ['English', 'Hindi'],
+                              selected: _language,
+                              onSelected: (v) =>
+                                  setState(() => _language = v),
+                            ),
+                            const SizedBox(height: 24),
+                            const _SectionHeading(
+                              title: 'Dominant Hand',
+                              icon: Icons.pan_tool_alt_rounded,
+                            ),
+                            const SizedBox(height: 12),
+                            _SelectionRow(
+                              options: const ['Right', 'Left'],
+                              selected: _hand,
+                              onSelected: (v) => setState(() => _hand = v),
+                            ),
+                            const SizedBox(height: 10),
+                            Padding(
+                              padding: const EdgeInsets.only(left: 8),
+                              child: Text(
+                                'The hand you write with',
+                                style: textTheme.bodyLarge?.copyWith(
+                                  color: AppColors.textPrimary
+                                      .withValues(alpha: 0.9),
+                                  fontSize: 16,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 24),
+                          ],
                         ),
-                        textAlign: TextAlign.center,
                       ),
                     ),
-                    const SizedBox(height: 26),
-                    _StepLabel(text: 'Step 1 of 3'),
-                    const SizedBox(height: 34),
-                    _SectionHeading(
-                      title: 'Language',
-                      icon: Icons.public,
-                    ),
-                    const SizedBox(height: 12),
-                    _SelectionRow(
-                      options: const ['English', 'Hindi'],
-                      selected: _language,
-                      onSelected: (v) => setState(() => _language = v),
-                    ),
-                    const SizedBox(height: 30),
-                    _SectionHeading(
-                      title: 'Dominant Hand',
-                      icon: Icons.pan_tool_alt_rounded,
-                    ),
-                    const SizedBox(height: 12),
-                    _SelectionRow(
-                      options: const ['Right', 'Left'],
-                      selected: _hand,
-                      onSelected: (v) => setState(() => _hand = v),
-                    ),
-                    const SizedBox(height: 10),
-                    Padding(
-                      padding: const EdgeInsets.only(left: 8),
-                      child: Text(
-                        'The hand you write with',
-                        style: textTheme.bodyLarge?.copyWith(
-                          color: AppColors.textPrimary.withValues(alpha: 0.9),
-                          fontSize: 18,
-                        ),
-                      ),
-                    ),
-                    const Spacer(),
                     GestureDetector(
                       onTapDown: (_) => setState(() => _pressed = true),
                       onTapCancel: () => setState(() => _pressed = false),
@@ -189,7 +203,7 @@ class _ContinueButtonState extends State<_ContinueButton>
               'Continue ->',
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
                     color: AppColors.midnight,
-                    fontSize: 26,
+                    fontSize: 22,
                     letterSpacing: 0.3,
                   ),
             ),
@@ -214,7 +228,7 @@ class _SectionHeading extends StatelessWidget {
         const SizedBox(width: 10),
         Text(
           title,
-          style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontSize: 48),
+          style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontSize: 28),
         ),
       ],
     );
@@ -308,7 +322,7 @@ class _GoldPillOption extends StatelessWidget {
                 label,
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontSize: 24,
+                      fontSize: 20,
                       color: AppColors.textPrimary.withValues(alpha: 0.95),
                     ),
               ),
